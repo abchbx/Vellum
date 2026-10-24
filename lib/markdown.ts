@@ -31,6 +31,14 @@ function escapeHtml(s: string): string {
     .replaceAll('"', '&quot;');
 }
 
+export { escapeHtml };
+
+export function escapeSnippet(raw: string): string {
+  return escapeHtml(raw)
+    .replace(/\u0001/g, '<mark>')
+    .replace(/\u0002/g, '</mark>');
+}
+
 function safeHref(raw: string): string | null {
   const url = raw.trim();
   if (/^(https?:|mailto:|\/|#)/i.test(url)) return url;
@@ -79,7 +87,7 @@ function renderTable(lines: string[]): string {
   return `<table class="paper overflow-hidden my-8"><thead><tr class="bg-surface-2 text-left">${th}</tr></thead><tbody>${trs}</tbody></table>`;
 }
 
-export function renderMarkdown(md: string, slugMap?: Map<string, string>): string {
+export function renderMarkdown(md: string, basePath: string, slugMap?: Map<string, string>): string {
   const links = parseWikiLinks(md);
   const placeholders = new Map<string, WikiLink>();
   let stash = md;
@@ -189,7 +197,7 @@ export function renderMarkdown(md: string, slugMap?: Map<string, string>): strin
     const targetSlug = slugMap?.get(l.slug) ?? l.slug;
     html = html.replace(
       key,
-      `<a href="/u/${encodeURIComponent('demo')}/${encodeURIComponent(targetSlug)}" class="vl-link link-underline font-medium">${escapeHtml(l.text)}</a>`,
+      `<a href="${basePath}/${encodeURIComponent(targetSlug)}" class="vl-link link-underline font-medium">${escapeHtml(l.text)}</a>`,
     );
   }
   return html;
@@ -198,6 +206,7 @@ export function renderMarkdown(md: string, slugMap?: Map<string, string>): strin
 export function excerptOf(md: string, max = 160): string {
   const plain = md
     .replace(WIKI_LINK_RE, (_m, s, t) => t ?? s)
+    .replace(/<[^>]*>/g, '')
     .replace(/^#{1,4}\s+/gm, '')
     .replace(/[`*>_-]/g, '')
     .replace(/\s+/g, ' ')

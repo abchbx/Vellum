@@ -29,6 +29,7 @@ export function Workbench() {
   const [backlinks, setBacklinks] = useState<BacklinkItem[]>([]);
   const [statusFilter, setStatusFilter] = useState('');
   const [loading, setLoading] = useState(true);
+  const [handle, setHandle] = useState('');
   const router = useRouter();
 
   const loadNotes = useCallback(async (status?: string) => {
@@ -39,6 +40,10 @@ export function Workbench() {
   }, []);
 
   useEffect(() => {
+    (async () => {
+      const me = await fetch('/api/me').then((r) => r.json()).catch(() => null);
+      if (me?.ok && me.data?.user?.handle) setHandle(me.data.user.handle);
+    })();
     loadNotes();
   }, [loadNotes]);
 
@@ -163,7 +168,7 @@ export function Workbench() {
 
       {/* 编辑器 */}
       <main className="min-w-0 flex-1">
-        <NoteEditor note={selected} key={selected?.id ?? 'none'} />
+        <NoteEditor note={selected} basePath={`/u/${handle}`} key={selected?.id ?? 'none'} />
       </main>
 
       {/* 元信息与反向链接 */}

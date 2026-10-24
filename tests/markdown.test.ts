@@ -5,6 +5,7 @@ import {
   renderMarkdown,
   excerptOf,
   readingMinutes,
+  escapeSnippet,
 } from '@/lib/markdown';
 
 describe('wiki-link 解析', () => {
@@ -26,7 +27,7 @@ describe('wiki-link 解析', () => {
 
 describe('Markdown 渲染', () => {
   it('转义 HTML 防注入', () => {
-    const html = renderMarkdown('<script>alert(1)</script>');
+    const html = renderMarkdown('<script>alert(1)</script>', '/u/demo');
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
   });
@@ -42,7 +43,7 @@ describe('Markdown 渲染', () => {
       'code',
       '```',
     ].join('\n');
-    const html = renderMarkdown(md);
+    const html = renderMarkdown(md, '/u/demo');
     expect(html).toContain('<h1');
     expect(html).toContain('<strong>粗体</strong>');
     expect(html).toContain('<ul');
@@ -51,15 +52,29 @@ describe('Markdown 渲染', () => {
   });
 
   it('渲染 GFM 表格', () => {
-    const html = renderMarkdown('| A | B |\n|---|---|\n| 1 | 2 |');
+    const html = renderMarkdown('| A | B |\n|---|---|\n| 1 | 2 |', '/u/demo');
     expect(html).toContain('<table');
     expect(html).toContain('<th>A</th>');
   });
 
-  it('wiki 链接转为带 class 的锚点', () => {
-    const html = renderMarkdown('见 [[某个笔记]]');
-    expect(html).toContain('class="vl-link');
-    expect(html).toContain('某个笔记');
+  it('wiki 链接的 basePath 使用真实 handle（P0-1）', () => {
+    const html = renderMarkdown('见 [[某个笔记]]', '/u/alice');
+    expect(html).toContain('/u/alice/');
+    expect(html).not.toContain('/u/demo');
+  });
+
+  it('wiki 链接 href 经过 slug 映射', () => {
+    const map = new Map([['笔记标题', 'abc-123']]);
+    const html = renderMarkdown('见 [[笔记标题]]', '/u/alice', map);
+    expect(html).toContain('/u/alice/abc-123');
+  });
+
+  it('excerpt 剥离 HTML 标签（P0-4）', () => {
+    const md = '<img src=x onerror=alert(1)> 花园不是图书馆';
+    const ex = excerptOf(md);
+    expect(ex).not.toContain('<img');
+    expect(ex).not.toContain('onerror');
+    expect(ex).toContain('花园不是图书馆');
   });
 
   it('excerpt 不超过 160 字', () => {
@@ -70,5 +85,12 @@ describe('Markdown 渲染', () => {
   it('阅读分钟数为正整数', () => {
     expect(readingMinutes('短')).toBeGreaterThanOrEqual(1);
     expect(readingMinutes('内容'.repeat(400))).toBeGreaterThan(1);
+  });
+
+  it('搜索片段转义并还原 mark 哨兵（P0-4）', () => {
+    const snippet = escapeSnippet('<img src=x onerror=alert(1)> 花园花园');
+    expect(snippet).not.toContain('<img');
+    expect(snippet).toContain('&lt;img');
+    expect(snippet).toContain('<mark>花园</mark>');
   });
 });

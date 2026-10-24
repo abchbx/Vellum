@@ -44,7 +44,7 @@ const TOOLS: ToolDef[] = [
   { key: 'image', label: '🖼', title: '图片', apply: (s) => `![${s || '描述'}](https://)` },
 ];
 
-export function NoteEditor({ note }: { note: EditorNote | null }) {
+export function NoteEditor({ note, basePath }: { note: EditorNote | null; basePath: string }) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [status, setStatus] = useState<NoteStatus>('seedling');
@@ -308,7 +308,7 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
         {preview && (
           <div className="flex-1 overflow-y-auto border-l border-line">
             <div className="mx-auto max-w-[680px] px-6 py-10">
-              <Preview md={content} />
+              <Preview md={content} basePath={basePath} />
             </div>
           </div>
         )}

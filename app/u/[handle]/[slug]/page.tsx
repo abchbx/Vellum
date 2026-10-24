@@ -72,7 +72,7 @@ export default async function ReadNote({
 
         <article
           className="mt-10 text-[17px] leading-[1.85]"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(row.contentMd, slugMap) }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(row.contentMd, `/u/${handle}`, slugMap) }}
         />
 
         {backlinks.length > 0 && (
