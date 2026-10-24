@@ -7,9 +7,18 @@ import { db } from '../db';
 import { users } from '../db/schema';
 import { HttpError } from './http';
 
-const SESSION_SECRET = new TextEncoder().encode(
-  process.env.SESSION_SECRET ?? 'dev-only-insecure-secret-32chars-min-xxxxxxxxxx',
-);
+function loadSecret(): Uint8Array {
+  const raw = process.env.SESSION_SECRET;
+  if (!raw || raw.length < 32) {
+    if (process.env.NODE_ENV === 'test') {
+      return new TextEncoder().encode('test-only-secret-32chars-min-0000000000');
+    }
+    throw new Error('SESSION_SECRET 未配置或长度不足 32 字符，拒绝启动');
+  }
+  return new TextEncoder().encode(raw);
+}
+
+const SESSION_SECRET = loadSecret();
 export const SESSION_COOKIE = 'vl_session';
 const SESSION_DAYS = 7;
 
