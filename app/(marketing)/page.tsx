@@ -1,9 +1,32 @@
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { SiteHeader } from '@/components/SiteHeader';
 import { Vine } from '@/components/Vine';
 import { CommandPalette } from '@/components/CommandPalette';
 import { Reveal } from '@/components/Reveal';
 import { escapeHtml } from '@/lib/markdown';
+
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://vellum.example.com';
+
+export async function generateMetadata(): Promise<Metadata> {
+  return {
+    title: 'Vellum · 数字花园',
+    description:
+      '用 Markdown 写笔记，用双向链接把想法连成网，自动生成知识图谱与写作统计。一座种着思想的花园。',
+    openGraph: {
+      title: 'Vellum · 数字花园',
+      description: '用 Markdown 写笔记，用 [[双向链接]] 把想法连成网。',
+      type: 'website',
+      images: [{ url: `${siteUrl}/og?title=Vellum · 数字花园`, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: 'Vellum · 数字花园',
+      description: '用 Markdown 写笔记，用 [[双向链接]] 把想法连成网。',
+      images: [`${siteUrl}/og?title=Vellum · 数字花园`],
+    },
+  };
+}
 import { db } from '@/db';
 import { notes, users } from '@/db/schema';
 import { sql } from 'drizzle-orm';
@@ -152,7 +175,7 @@ export default async function Landing() {
                   </a>
                 </div>
                 <div className="bg-surface p-5">
-                  <p className="font-mono text-[11px] text-muted">BACKLINKS</p>
+                  <p className="font-mono text-[11px] text-muted">BACKLINKS（示意图）</p>
                   <div className="mt-3 space-y-2 text-[13px] text-muted">
                     <div className="border-l-2 border-line pl-3">
                       「笔记卡片盒方法」<br />

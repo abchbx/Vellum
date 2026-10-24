@@ -1,4 +1,5 @@
 import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
 import Link from 'next/link';
 import { db } from '@/db';
 import { notes, users } from '@/db/schema';
@@ -8,6 +9,20 @@ import { StatusBadge } from '@/components/StatusBadge';
 
 export const runtime = 'nodejs';
 export const revalidate = 300;
+
+export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }): Promise<Metadata> {
+  const { handle } = await params;
+  return {
+    title: `${handle} 的花园 · Vellum`,
+    description: `${handle} 的数字花园：公开的 evergreen 笔记，用双向链接把想法连成网。`,
+    openGraph: {
+      title: `${handle} 的花园 · Vellum`,
+      description: `${handle} 的数字花园：公开的 evergreen 笔记。`,
+      type: 'profile',
+      images: [{ url: `/og?title=${encodeURIComponent(handle)} 的花园` }],
+    },
+  };
+}
 
 export default async function PublicGarden({
   params,
@@ -67,20 +82,29 @@ export default async function PublicGarden({
         {gardenNotes.length === 0 ? (
           <p className="mt-16 text-center text-muted">园主还没有公开任何 evergreen 笔记。</p>
         ) : (
-          <div className="mt-16 grid gap-px overflow-hidden border border-line bg-line md:grid-cols-3">
-            {gardenNotes.map((n) => (
-              <Link
-                key={n.id}
-                href={`/u/${handle}/${n.slug}`}
-                className="group flex flex-col gap-4 bg-surface p-8 transition-transform duration-320 hover:-translate-y-1"
-              >
-                <StatusBadge status={n.status} />
-                <h2 className="font-serif text-xl">{n.title}</h2>
-                <p className="line-clamp-3 text-sm leading-relaxed text-muted">{n.excerpt}</p>
-                <span className="mt-auto font-mono text-[11px] text-accent">阅读 →</span>
-              </Link>
-            ))}
-          </div>
+          <>
+            <div className="mt-16 grid gap-px overflow-hidden border border-line bg-line md:grid-cols-3">
+              {gardenNotes.map((n) => (
+                <Link
+                  key={n.id}
+                  href={`/u/${handle}/${n.slug}`}
+                  className="group flex flex-col gap-4 bg-surface p-8 transition-transform duration-320 hover:-translate-y-1"
+                >
+                  <StatusBadge status={n.status} />
+                  <h2 className="font-serif text-xl">{n.title}</h2>
+                  <p className="line-clamp-3 text-sm leading-relaxed text-muted">{n.excerpt}</p>
+                  <span className="mt-auto font-mono text-[11px] text-accent">阅读 →</span>
+                </Link>
+              ))}
+            </div>
+            {nextCursor && (
+              <p className="mt-8 text-center">
+                <Link href={`/u/${handle}?cursor=${encodeURIComponent(nextCursor)}`} className="link-underline text-sm text-muted">
+                  加载更多 →
+                </Link>
+              </p>
+            )}
+          </>
         )}
       </div>
     </div>

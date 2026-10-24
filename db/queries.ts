@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db } from './index';
 import { links, noteTags, notes, tags, users } from './schema';
 import { excerptOf, readingMinutes, escapeSnippet } from '../lib/markdown';
-import { heatmap, calcStreak, heatmapFromDayCounts, toDateKey } from '../lib/stats';
+import { calcStreak, heatmapFromDayCounts, toDateKey } from '../lib/stats';
 import { TAG_COLORS } from '../lib/zod';
 
 import { createHash } from 'node:crypto';
