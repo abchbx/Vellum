@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db } from './index';
 import { links, noteTags, notes, tags, users } from './schema';
 import { excerptOf, readingMinutes, escapeSnippet } from '../lib/markdown';
+import { heatmap, calcStreak } from '../lib/stats';
 import { TAG_COLORS } from '../lib/zod';
 
 import { createHash } from 'node:crypto';
@@ -168,35 +169,8 @@ export async function getStats(authorId: string) {
     byStatus,
     links: linkRows.filter((l) => l.targetId !== null).length,
     orphans: rows.filter((n) => !outbound.has(n.id) && !inbound.has(n.id)).length,
-    heatmap: heatmapRows(rows),
+    heatmap: heatmap(rows),
   };
-}
-
-function heatmapRows(rows: typeof notes.$inferSelect[]) {
-  const buckets = new Map<string, number>();
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const start = new Date(today);
-  start.setDate(start.getDate() - 26 * 7 + 1);
-  const key = (d: Date) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
-  for (const n of rows) {
-    const d = n.updatedAt instanceof Date ? n.updatedAt : new Date(n.updatedAt);
-    const k = key(d);
-    if (k < key(start)) continue;
-    buckets.set(k, (buckets.get(k) ?? 0) + 1);
-  }
-  const cells: { date: string; count: number }[] = [];
-  for (let i = 0; i < 26 * 7; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    cells.push({ date: key(d), count: buckets.get(key(d)) ?? 0 });
-  }
-  return cells;
 }
 
 export async function getStreak(authorId: string) {
@@ -204,29 +178,7 @@ export async function getStreak(authorId: string) {
     .select({ updatedAt: notes.updatedAt })
     .from(notes)
     .where(sql`${notes.authorId} = ${authorId}::uuid`);
-  const days = new Set(
-    rows.map((r) => {
-      const d = r.updatedAt instanceof Date ? r.updatedAt : new Date(r.updatedAt);
-      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    }),
-  );
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  let cursor = today;
-  const todayKey = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-  if (!days.has(todayKey)) {
-    cursor = new Date(today);
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  let streak = 0;
-  while (true) {
-    const k = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, '0')}-${String(cursor.getDate()).padStart(2, '0')}`;
-    if (!days.has(k)) break;
-    streak += 1;
-    cursor = new Date(cursor);
-    cursor.setDate(cursor.getDate() - 1);
-  }
-  return streak;
+  return calcStreak(rows.map((r) => (r.updatedAt instanceof Date ? r.updatedAt : new Date(r.updatedAt))));
 }
 
 export function computeExcerpt(contentMd: string) {

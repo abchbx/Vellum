@@ -7,10 +7,10 @@ export function toDateKey(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export function calcStreak(dates: Date[]): number {
+export function calcStreak(dates: Date[], end?: Date): number {
   if (dates.length === 0) return 0;
   const daySet = new Set(dates.map(toDateKey));
-  const today = new Date();
+  const today = end ?? new Date();
   const yesterday = new Date(today);
   yesterday.setDate(today.getDate() - 1);
 
