@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import { noteUpdateSchema } from '@/lib/zod';
 import { syncTags, computeExcerpt, computeReadingMins } from '@/db/queries';
 import { rebuildLinksForNote, resolveDanglingLinks } from '@/lib/links';
-import { ok, fail, handleError } from '@/lib/http';
+import { ok, fail, handleError, isUuid } from '@/lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -15,6 +15,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
   try {
     const user = await requireUserFromRequest(req);
     const { id } = await ctx.params;
+    if (!isUuid(id)) return fail(404, 'NOT_FOUND', '笔记不存在');
     const rows = await db.select().from(notes).where(sql`${notes.id} = ${id}::uuid`).limit(1);
     const note = rows[0];
     if (!note) return fail(404, 'NOT_FOUND', '笔记不存在');
@@ -41,6 +42,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
   try {
     const user = await requireUserFromRequest(req);
     const { id } = await ctx.params;
+    if (!isUuid(id)) return fail(404, 'NOT_FOUND', '笔记不存在');
     const rows = await db.select().from(notes).where(sql`${notes.id} = ${id}::uuid`).limit(1);
     const note = rows[0];
     if (!note) return fail(404, 'NOT_FOUND', '笔记不存在');
@@ -82,6 +84,7 @@ export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: stri
   try {
     const user = await requireUserFromRequest(req);
     const { id } = await ctx.params;
+    if (!isUuid(id)) return fail(404, 'NOT_FOUND', '笔记不存在');
     const rows = await db.select().from(notes).where(sql`${notes.id} = ${id}::uuid`).limit(1);
     const note = rows[0];
     if (!note) return fail(404, 'NOT_FOUND', '笔记不存在');
