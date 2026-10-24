@@ -19,7 +19,7 @@ export interface EditorNote {
   tags?: { id: string; name: string; color: string }[];
 }
 
-type SaveState = 'idle' | 'saving' | 'saved' | 'error';
+type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'conflict';
 
 interface ToolDef {
   key: string;
@@ -53,6 +53,7 @@ export function NoteEditor({ note, basePath }: { note: EditorNote | null; basePa
   const [tags, setTags] = useState<string[]>([]);
   const [save, setSave] = useState<SaveState>('idle');
   const [preview, setPreview] = useState(false);
+  const [baseUpdatedAt, setBaseUpdatedAt] = useState('');
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -64,6 +65,7 @@ export function NoteEditor({ note, basePath }: { note: EditorNote | null; basePa
     setStatus(note.status);
     setPublished(note.published);
     setTags(note.tags?.map((t) => t.name) ?? []);
+    setBaseUpdatedAt(String(note.updatedAt));
     setSave('idle');
     dirtyRef.current = false;
   }, [note]);
@@ -88,8 +90,12 @@ export function NoteEditor({ note, basePath }: { note: EditorNote | null; basePa
         const res = await fetch(`/api/notes/${note.id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
+          body: JSON.stringify({ ...payload, version: baseUpdatedAt }),
         });
+        if (res.status === 409) {
+          setSave('conflict');
+          return;
+        }
         if (!res.ok) throw new Error('save failed');
         dirtyRef.current = false;
         setSave('saved');
@@ -98,7 +104,7 @@ export function NoteEditor({ note, basePath }: { note: EditorNote | null; basePa
         setSave('error');
       }
     },
-    [note, title, content, status, tags],
+    [note, title, content, status, tags, baseUpdatedAt],
   );
 
   useEffect(() => {
@@ -203,7 +209,7 @@ export function NoteEditor({ note, basePath }: { note: EditorNote | null; basePa
         </label>
         <div className="ml-auto flex items-center gap-3">
           <span className="font-mono text-[11px] tabular text-muted">
-            {save === 'saving' ? '保存中…' : save === 'saved' ? '已保存' : save === 'error' ? '保存失败' : ''}
+            {save === 'saving' ? '保存中…' : save === 'saved' ? '已保存' : save === 'error' ? '保存失败' : save === 'conflict' ? '版本已过期，已为你刷新' : ''}
           </span>
           <button
             type="button"

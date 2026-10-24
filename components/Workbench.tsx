@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { NoteEditor, type EditorNote } from '@/components/NoteEditor';
 import { StatusBadge } from '@/components/StatusBadge';
+import { Toast, useToast } from '@/components/Toast';
 import { createNoteAction } from '@/app/actions';
 
 interface NoteItem {
@@ -31,13 +32,20 @@ export function Workbench() {
   const [loading, setLoading] = useState(true);
   const [handle, setHandle] = useState('');
   const router = useRouter();
+  const toast = useToast();
 
   const loadNotes = useCallback(async (status?: string) => {
-    const res = await fetch(`/api/notes?limit=50${status ? `&status=${status}` : ''}`);
-    const json = await res.json();
-    if (json.ok) setNotes(json.data.items as NoteItem[]);
-    setLoading(false);
-  }, []);
+    try {
+      const res = await fetch(`/api/notes?limit=50${status ? `&status=${status}` : ''}`);
+      const json = await res.json();
+      if (!json.ok) throw new Error(json.error?.message ?? '加载失败');
+      setNotes(json.data.items as NoteItem[]);
+    } catch (e) {
+      toast.show(`笔记列表加载失败：${(e as Error).message}，请检查网络后重试`);
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
 
   useEffect(() => {
     (async () => {
@@ -48,17 +56,22 @@ export function Workbench() {
   }, [loadNotes]);
 
   const selectNote = useCallback(async (id: string) => {
-    const [detail, backs] = await Promise.all([
-      fetch(`/api/notes/${id}`).then((r) => r.json()),
-      fetch(`/api/notes/${id}/backlinks`).then((r) => r.json()),
-    ]);
-    if (detail.ok) {
-      const n = detail.data.note as EditorNote;
-      setSelected(n);
-      router.replace(`/app?note=${id}`, { scroll: false });
+    try {
+      const [detail, backs] = await Promise.all([
+        fetch(`/api/notes/${id}`).then((r) => r.json()),
+        fetch(`/api/notes/${id}/backlinks`).then((r) => r.json()),
+      ]);
+      if (detail.ok) {
+        const n = detail.data.note as EditorNote;
+        setSelected(n);
+        router.replace(`/app?note=${id}`, { scroll: false });
+      }
+      if (!detail.ok) toast.show(`笔记打开失败：${detail.error?.message ?? '未知错误'}`);
+      if (backs.ok) setBacklinks(backs.data.items as BacklinkItem[]);
+    } catch {
+      toast.show('笔记打开失败，请检查网络后重试');
     }
-    if (backs.ok) setBacklinks(backs.data.items as BacklinkItem[]);
-  }, [router]);
+  }, [router, toast]);
 
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -70,12 +83,11 @@ export function Workbench() {
     const form = new FormData();
     form.set('title', `未命名笔记 ${new Date().toLocaleDateString('zh-CN')}`);
     const result = await createNoteAction(form);
-    if (result.ok) {
+    if (result.ok && result.noteId) {
       await loadNotes();
-      const res = await fetch('/api/notes?limit=1');
-      const json = await res.json();
-      const latest = json.data.items?.[0];
-      if (latest) selectNote(latest.id);
+      selectNote(result.noteId);
+    } else {
+      toast.show(result.error ?? '新建失败');
     }
   };
 
@@ -93,7 +105,8 @@ export function Workbench() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-65px)] overflow-hidden">
+    <>
+      <div className="flex h-[calc(100vh-65px)] overflow-hidden">
       {/* 笔记列表 */}
       <aside className="hidden w-[260px] shrink-0 flex-col border-r border-line md:flex">
         <div className="flex items-center justify-between px-5 py-4">
@@ -247,5 +260,7 @@ export function Workbench() {
         </div>
       </aside>
     </div>
+      {toast.message && <Toast message={toast.message} onClose={() => toast.setMessage(null)} />}
+    </>
   );
 }

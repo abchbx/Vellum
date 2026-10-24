@@ -54,6 +54,9 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
     if (!parsed.success) return fail(400, 'VALIDATION', '输入校验失败');
 
     const patch: Record<string, unknown> = { updatedAt: new Date() };
+    if (parsed.data.version !== undefined && note.updatedAt.getTime() !== new Date(parsed.data.version).getTime()) {
+      return fail(409, 'VERSION_CONFLICT', '笔记已被更新，请刷新后重试');
+    }
     if (parsed.data.title !== undefined) patch.title = parsed.data.title;
     if (parsed.data.contentMd !== undefined) {
       patch.contentMd = parsed.data.contentMd;

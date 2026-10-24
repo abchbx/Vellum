@@ -46,6 +46,7 @@ export const noteUpdateSchema = z.object({
   contentMd: z.string().max(200_000).optional(),
   status: statusEnum.optional(),
   published: z.boolean().optional(),
+  version: z.string().optional(),
   tagNames: z.array(z.string().max(30)).max(12).optional(),
 });
 
