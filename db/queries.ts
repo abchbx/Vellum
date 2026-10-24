@@ -1,12 +1,12 @@
 import { sql } from 'drizzle-orm';
 import { db } from './index';
 import { links, noteTags, notes, tags, users } from './schema';
-import { excerptOf, readingMinutes } from '../lib/markdown';
+import { excerptOf, readingMinutes, escapeSnippet } from '../lib/markdown';
 import { TAG_COLORS } from '../lib/zod';
 
 import { createHash } from 'node:crypto';
 
-export function slugify(raw: string, fallback = 'note'): string {
+export function slugify(raw: string): string {
   const ascii = raw
     .trim()
     .toLowerCase()
@@ -16,7 +16,6 @@ export function slugify(raw: string, fallback = 'note'): string {
   const hash = createHash('sha1').update(raw).digest('hex').slice(0, 8);
   return `n${hash}`;
 }
-
 export async function uniqueSlug(authorId: string, title: string, ignoreId?: string) {
   const base = slugify(title);
   const candidate0 = base;
@@ -119,13 +118,18 @@ export async function searchNotes(
     SELECT id, title, slug, excerpt, status, published,
            ts_rank(content_tsv, plainto_tsquery('simple', ${normalized})) as rank_,
            ts_headline(content_md, plainto_tsquery('simple', ${normalized}),
-             'MaxFragments=1, MaxWords=60, StartSel=<mark>, StopSel=</mark>') as snippet
+             'MaxFragments=1, MaxWords=60, StartSel=, StopSel=') as snippet
     FROM notes
     WHERE author_id = ${authorId}::uuid AND content_tsv @@ plainto_tsquery('simple', ${normalized})
     ORDER BY rank_ DESC, updated_at DESC
     LIMIT ${limit}
   `);
-  return { rows: result.rows as Record<string, unknown>[] };
+  return {
+    rows: result.rows.map((r) => {
+      const row = r as Record<string, unknown>;
+      return { ...row, snippet: row.snippet ? escapeSnippet(String(row.snippet)) : null };
+    }),
+  };
 }
 
 export async function getGraph(authorId: string) {

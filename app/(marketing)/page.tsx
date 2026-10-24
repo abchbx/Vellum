@@ -3,6 +3,7 @@ import { SiteHeader } from '@/components/SiteHeader';
 import { Vine } from '@/components/Vine';
 import { CommandPalette } from '@/components/CommandPalette';
 import { Reveal } from '@/components/Reveal';
+import { escapeHtml } from '@/lib/markdown';
 import { db } from '@/db';
 import { notes, users } from '@/db/schema';
 import { sql } from 'drizzle-orm';
@@ -142,7 +143,7 @@ export default async function Landing() {
                     className="mt-6 text-[15px] leading-[1.8] text-muted"
                     dangerouslySetInnerHTML={{
                       __html: garden.notes[0]
-                        ? `${garden.notes[0].excerpt}<br/><br/><span class="font-mono text-xs">…</span>`
+                        ? `${escapeHtml(garden.notes[0].excerpt)}<br/><br/><span class="font-mono text-xs">…</span>`
                         : '',
                     }}
                   />
