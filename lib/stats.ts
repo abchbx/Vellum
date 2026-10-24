@@ -50,6 +50,27 @@ export function heatmap(notes: Note[], weeks = 26): { date: string; count: numbe
   return cells;
 }
 
+export function heatmapFromDayCounts(
+  dayCounts: { date: string; count: number }[],
+  weeks = 26,
+): { date: string; count: number }[] {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const start = new Date(today);
+  start.setDate(start.getDate() - weeks * 7 + 1);
+  const startKey = toDateKey(start);
+
+  const map = new Map(dayCounts.map((c) => [c.date, c.count]));
+  const cells: { date: string; count: number }[] = [];
+  for (let i = 0; i < weeks * 7; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const key = toDateKey(d);
+    cells.push({ date: key, count: key >= startKey ? (map.get(key) ?? 0) : 0 });
+  }
+  return cells;
+}
+
 export function findOrphans(notes: Note[], outbound: Set<string>, inbound: Set<string>) {
   return notes
     .filter((n) => !outbound.has(n.id) && !inbound.has(n.id))

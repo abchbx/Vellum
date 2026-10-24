@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db } from './index';
 import { links, noteTags, notes, tags, users } from './schema';
 import { excerptOf, readingMinutes, escapeSnippet } from '../lib/markdown';
-import { heatmap, calcStreak } from '../lib/stats';
+import { heatmap, calcStreak, heatmapFromDayCounts, toDateKey } from '../lib/stats';
 import { TAG_COLORS } from '../lib/zod';
 
 import { createHash } from 'node:crypto';
@@ -36,30 +36,35 @@ export async function uniqueSlug(authorId: string, title: string, ignoreId?: str
 
 export async function syncTags(authorId: string, noteId: string, names: string[]) {
   await db.delete(noteTags).where(sql`${noteTags.noteId} = ${noteId}::uuid`);
-  if (names.length === 0) return;
+  const needed = [...new Set(names.map((n) => n.trim().slice(0, 30)).filter(Boolean))];
+  if (needed.length === 0) return;
+
   const existing = await db
     .select({ id: tags.id, name: tags.name })
     .from(tags)
     .where(sql`${tags.authorId} = ${authorId}::uuid`);
   const byName = new Map(existing.map((t) => [t.name, t.id]));
-  for (const raw of names) {
-    const name = raw.trim().slice(0, 30);
-    if (!name) continue;
-    let tagId = byName.get(name);
-    if (!tagId) {
-      const inserted = await db
-        .insert(tags)
-        .values({ authorId, name, color: TAG_COLORS[Math.floor(Math.random() * TAG_COLORS.length)] })
-        .returning({ id: tags.id });
-      tagId = inserted[0]?.id;
-      if (tagId) byName.set(name, tagId);
-    }
-    if (tagId) {
-      await db
-        .insert(noteTags)
-        .values({ noteId, tagId })
-        .onConflictDoNothing();
-    }
+
+  const missing = needed.filter((n) => !byName.has(n));
+  if (missing.length > 0) {
+    const inserted = await db
+      .insert(tags)
+      .values(
+        missing.map((name, i) => ({
+          authorId,
+          name,
+          color: TAG_COLORS[(existing.length + i) % TAG_COLORS.length],
+        })),
+      )
+      .returning({ id: tags.id, name: tags.name });
+    for (const r of inserted) byName.set(r.name, r.id);
+  }
+
+  const rows = needed
+    .map((name) => ({ noteId, tagId: byName.get(name) }))
+    .filter((r): r is { noteId: string; tagId: string } => !!r.tagId);
+  if (rows.length > 0) {
+    await db.insert(noteTags).values(rows).onConflictDoNothing();
   }
 }
 
@@ -134,8 +139,16 @@ export async function searchNotes(
 }
 
 export async function getGraph(authorId: string) {
-  const rows = await db.select().from(notes).where(sql`${notes.authorId} = ${authorId}::uuid`);
-  const linkRows = await db.select().from(links).where(sql`${links.sourceId} IN (SELECT id FROM notes WHERE author_id = ${authorId}::uuid)`);
+  const rows = await db
+    .select()
+    .from(notes)
+    .where(sql`${notes.authorId} = ${authorId}::uuid`)
+    .limit(500);
+  const linkRows = await db
+    .select({ sourceId: links.sourceId, targetId: links.targetId })
+    .from(links)
+    .where(sql`${links.sourceId} IN (SELECT id FROM notes WHERE author_id = ${authorId}::uuid)`)
+    .limit(5000);
   const statusWeight = { seedling: 1, budding: 2, evergreen: 3 } as const;
   const nodes = rows.map((n) => ({
     id: n.id,
@@ -151,34 +164,55 @@ export async function getGraph(authorId: string) {
 }
 
 export async function getStats(authorId: string) {
-  const rows = await db
-    .select()
-    .from(notes)
-    .where(sql`${notes.authorId} = ${authorId}::uuid`);
-  const linkRows = await db
-    .select({ sourceId: links.sourceId, targetId: links.targetId })
-    .from(links)
-    .where(sql`${links.sourceId} IN (SELECT id FROM notes WHERE author_id = ${authorId}::uuid)`);
-
-  const outbound = new Set(linkRows.map((l) => l.sourceId));
-  const inbound = new Set(linkRows.filter((l) => l.targetId !== null).map((l) => l.targetId as string));
+  const statusRows = await db.execute(sql`
+    SELECT status, count(*)::int as c FROM notes WHERE author_id = ${authorId}::uuid GROUP BY status
+  `);
   const byStatus = { seedling: 0, budding: 0, evergreen: 0 };
-  for (const n of rows) byStatus[n.status] += 1;
+  let total = 0;
+  for (const r of statusRows.rows as { status: string; c: number }[]) {
+    if (r.status in byStatus) byStatus[r.status as 'seedling' | 'budding' | 'evergreen'] = r.c;
+    total += r.c;
+  }
+
+  const linksRow = await db.execute(sql`
+    SELECT count(*)::int as c FROM links
+    WHERE target_id IS NOT NULL AND source_id IN (SELECT id FROM notes WHERE author_id = ${authorId}::uuid)
+  `);
+  const orphanRow = await db.execute(sql`
+    SELECT count(*)::int as c FROM notes n
+    WHERE n.author_id = ${authorId}::uuid AND NOT EXISTS (
+      SELECT 1 FROM links l WHERE l.source_id = n.id OR l.target_id = n.id
+    )
+  `);
+
+  const start = new Date();
+  start.setDate(start.getDate() - 26 * 7 + 1);
+  const dayRows = await db.execute(sql`
+    SELECT date_trunc('day', updated_at)::date as d, count(*)::int as c
+    FROM notes
+    WHERE author_id = ${authorId}::uuid AND updated_at >= ${start}::timestamptz
+    GROUP BY 1
+  `);
+
   return {
-    total: rows.length,
+    total,
     byStatus,
-    links: linkRows.filter((l) => l.targetId !== null).length,
-    orphans: rows.filter((n) => !outbound.has(n.id) && !inbound.has(n.id)).length,
-    heatmap: heatmap(rows),
+    links: (linksRow.rows as { c: number }[])[0]?.c ?? 0,
+    orphans: (orphanRow.rows as { c: number }[])[0]?.c ?? 0,
+    heatmap: heatmapFromDayCounts(
+      (dayRows.rows as { d: Date; c: number }[]).map((r) => ({ date: toDateKey(r.d), count: r.c })),
+    ),
   };
 }
 
 export async function getStreak(authorId: string) {
-  const rows = await db
-    .select({ updatedAt: notes.updatedAt })
-    .from(notes)
-    .where(sql`${notes.authorId} = ${authorId}::uuid`);
-  return calcStreak(rows.map((r) => (r.updatedAt instanceof Date ? r.updatedAt : new Date(r.updatedAt))));
+  const cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - 400);
+  const rows = await db.execute(sql`
+    SELECT DISTINCT date_trunc('day', updated_at)::date as d FROM notes
+    WHERE author_id = ${authorId}::uuid AND updated_at >= ${cutoff}::timestamptz
+  `);
+  return calcStreak((rows.rows as { d: Date }[]).map((r) => r.d));
 }
 
 export function computeExcerpt(contentMd: string) {
