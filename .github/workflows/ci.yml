@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_PASSWORD: vellum
+          POSTGRES_DB: vellum
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npx tsc --noEmit
+      - name: Run tests (unit + integration against Postgres)
+        run: |
+          export DATABASE_URL=postgres://postgres:vellum@localhost:5432/vellum
+          export SESSION_SECRET=ci-secret-32chars-min-0000000000
+          npm run test
+      - name: Build
+        run: npm run build
+        env:
+          DATABASE_URL: postgres://postgres:vellum@localhost:5432/vellum
+          SESSION_SECRET: ci-secret-32chars-min-0000000000
+          NEXT_PUBLIC_SITE_URL: https://vellum-ci.example.com
