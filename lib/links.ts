@@ -20,28 +20,16 @@ export async function rebuildLinksForNote(noteId: string, authorId: string) {
     .where(sql`${notes.authorId} = ${authorId}::uuid`);
   const bySlug = new Map(all.map((n) => [n.slug.toLowerCase(), n.id]));
 
-  for (const slug of slugs) {
-    const targetId = bySlug.get(slugify(slug)) ?? null;
-    await db
-      .insert(links)
-      .values({ sourceId: noteId, targetSlug: slug, targetId })
-      .onConflictDoUpdate({
-        target: [links.sourceId, links.targetSlug],
-        set: { targetId },
-      });
-  }
-
-  const existing = await db
-    .select({ id: links.id, targetSlug: links.targetSlug })
-    .from(links)
-    .where(sql`${links.sourceId} = ${noteId}::uuid`);
-  const keep = new Set(slugs);
-  const gone = existing
-    .filter((l) => !keep.has(l.targetSlug.toLowerCase()))
-    .map((l) => l.id);
-  if (gone.length > 0) {
-    const ors = gone.map((id) => sql`${links.id} = ${id}::uuid`);
-    await db.delete(links).where(sql`${sql.join(ors, sql` OR `)}`);
+  // 一致性说明：neon-http 无交互事务，删除与插入之间存在短暂窗口；
+  // 本函数幂等，失败后重跑即收敛（详见 README「一致性模型」）。
+  await db.delete(links).where(sql`${links.sourceId} = ${noteId}::uuid`);
+  const rows = slugs.map((slug) => ({
+    sourceId: noteId,
+    targetSlug: slug,
+    targetId: bySlug.get(slugify(slug)) ?? null,
+  }));
+  if (rows.length > 0) {
+    await db.insert(links).values(rows).onConflictDoNothing();
   }
 }
 
