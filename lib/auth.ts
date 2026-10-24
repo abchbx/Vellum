@@ -5,6 +5,7 @@ import { NextRequest } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '../db';
 import { users } from '../db/schema';
+import { HttpError } from './http';
 
 const SESSION_SECRET = new TextEncoder().encode(
   process.env.SESSION_SECRET ?? 'dev-only-insecure-secret-32chars-min-xxxxxxxxxx',
@@ -104,11 +105,9 @@ export async function getSessionUserFromRequest(req: NextRequest) {
   return rows[0] ?? null;
 }
 
-export class AuthError extends Error {
-  status: number;
+export class AuthError extends HttpError {
   constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
+    super(status, status === 401 ? 'UNAUTHORIZED' : 'FORBIDDEN', message);
   }
 }
 

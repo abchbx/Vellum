@@ -269,7 +269,7 @@ async function main() {
       const slug = slugRaw.toLowerCase();
       if (seen.has(slug)) continue;
       seen.add(slug);
-      const target = NOTES.find((t) => slugify(t.title) === slug);
+      const target = NOTES.find((t) => slugify(t.title) === slugify(slugRaw));
       const targetId = target ? byTitle.get(target.title) : null;
       await db
         .insert(links)

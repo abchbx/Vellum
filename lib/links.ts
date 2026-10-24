@@ -2,6 +2,7 @@ import { sql } from 'drizzle-orm';
 import { db } from '../db';
 import { links, notes } from '../db/schema';
 import { extractLinkedSlugs } from './markdown';
+import { slugify } from '../db/queries';
 
 export async function rebuildLinksForNote(noteId: string, authorId: string) {
   const content = await db
@@ -20,7 +21,7 @@ export async function rebuildLinksForNote(noteId: string, authorId: string) {
   const bySlug = new Map(all.map((n) => [n.slug.toLowerCase(), n.id]));
 
   for (const slug of slugs) {
-    const targetId = bySlug.get(slug) ?? null;
+    const targetId = bySlug.get(slugify(slug)) ?? null;
     await db
       .insert(links)
       .values({ sourceId: noteId, targetSlug: slug, targetId })

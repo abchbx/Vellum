@@ -2,6 +2,12 @@
 @import '../styles/tokens.css';
 
 @layer base {
+  mark {
+    background: color-mix(in srgb, var(--accent) 25%, transparent);
+    color: inherit;
+    border-radius: 2px;
+    padding: 0 2px;
+  }
   html {
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;

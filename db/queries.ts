@@ -108,19 +108,24 @@ export async function getNote(noteId: string) {
   return rows[0] ?? null;
 }
 
-export async function searchNotes(authorId: string, rawQuery: string, limit = 20) {
-  const normalized = rawQuery.trim();
-  if (!normalized) return [];
-  return db.execute(sql`
+export async function searchNotes(
+  authorId: string,
+  rawQuery: string,
+  limit = 20,
+): Promise<{ rows: Record<string, unknown>[] }> {
+  const normalized = rawQuery.replace(/([一-鿿])/g, ' $1 ').trim();
+  if (!normalized) return { rows: [] };
+  const result = await db.execute(sql`
     SELECT id, title, slug, excerpt, status, published,
            ts_rank(content_tsv, plainto_tsquery('simple', ${normalized})) as rank_,
            ts_headline(content_md, plainto_tsquery('simple', ${normalized}),
-             'MaxFragments=1, MaxWords=60, StartSel=<mark class="bg-accent/25 rounded px-0.5">, StopSel=</mark>') as snippet
+             'MaxFragments=1, MaxWords=60, StartSel=<mark>, StopSel=</mark>') as snippet
     FROM notes
     WHERE author_id = ${authorId}::uuid AND content_tsv @@ plainto_tsquery('simple', ${normalized})
     ORDER BY rank_ DESC, updated_at DESC
     LIMIT ${limit}
   `);
+  return { rows: result.rows as Record<string, unknown>[] };
 }
 
 export async function getGraph(authorId: string) {
