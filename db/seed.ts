@@ -305,6 +305,7 @@ async function main() {
 
   const count = await db.execute(sql`SELECT count(*)::int as c FROM notes`);
   console.log(`[seed] done. notes=${(count.rows[0] as { c: number } | undefined)?.c ?? 0}`);
+  console.log(`[seed] 演示账号已就绪：${SEED_USER.email} / ${SEED_USER.password}（handle: ${SEED_USER.handle}）`);
 }
 
 main()

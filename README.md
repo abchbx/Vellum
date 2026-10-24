@@ -3,114 +3,141 @@
 一个给长期写作者用的「数字花园」：用 Markdown 写笔记，用 `[[双向链接]]` 把想法连成网，
 自动生成知识图谱、反向链接与写作统计，并能把花园公开给他人阅读。
 
-## 技术栈
+克制、安静、纸质感——以排版与留白为第一视觉语言，不是又一个博客，是「思想生长」的容器。
 
-- **前端**：Next.js 15（App Router / RSC / Route Handlers / Server Actions）、TypeScript strict（含 `noUncheckedIndexedAccess`）、Tailwind CSS v4（CSS-first 令牌）、Motion、next/font
-- **后端/数据**：PostgreSQL（Neon serverless）+ `@neondatabase/serverless`、Drizzle ORM + drizzle-kit、自研认证（`crypto.scrypt` + `jose` JWT，httpOnly Cookie）、zod、自研 Markdown 渲染管线（wiki-link + 安全子集 + 白名单消毒）、`d3-force`（仅 force 模块，SVG 自绘）
-- **测试**：Vitest（wiki-link 解析、Markdown 渲染、搜索分词、统计聚合）
+## 特性
 
-## 本地启动
+- **双向链接**：`[[笔记标题]]` 自动建链，反向链接自动显形，悬空链接自动回填
+- **知识图谱**：d3-force 力导引布局，hover 高亮一阶邻居
+- **写作统计**：26 周热力图、连续天数、状态分布、孤儿笔记清单
+- **全文搜索**：Postgres FTS（tsvector 生成列 + GIN），ts_headline 高亮
+- **公开花园**：`/u/<handle>` 免登录阅读，草稿永远留在墙内
+- **导出备份**：JSON 与 Markdown ZIP
+- **编辑器**：Markdown 工具栏、1.6s 自动保存、版本冲突提示
+- **工程护栏**：lint / tsc / 单测 / 集成测试 / CI 全绿
+
+## 快速开始
 
 ```bash
 npm install
-cp .env.example .env.local   # 填入 DATABASE_URL / SESSION_SECRET / NEXT_PUBLIC_SITE_URL
-npm run migrate              # 应用 drizzle/ 下的迁移（幂等）
-npm run seed                 # 灌入 12 篇互链笔记 + demo 账号
+cp .env.example .env.local
+npm run migrate        # 应用数据库迁移（幂等）
+npm run seed           # 灌入演示数据（会打印演示账号）
 npm run dev
 ```
 
-演示账号：`demo@vellum.app` / `demo1234`（handle: `demo`，花园已公开：`/u/demo`）。
-
-> 迁移说明：`drizzle-kit generate` 可直接产出正确的 `tsvector` 生成列；GIN 索引因
-> drizzle-kit 0.31 的 `index()` 不支持 `using('gin')`，由手写迁移
-> `drizzle/0001_gin_fts_index.sql` 维护（已在 journal 登记，`npm run migrate` 幂等执行）。
+打开 http://localhost:3000。演示账号由 seed 脚本生成并打印（不在文档中硬编码）。
 
 ## 环境变量
 
 | 变量 | 说明 |
 | --- | --- |
-| `DATABASE_URL` | Neon pooled connection string |
-| `SESSION_SECRET` | JWT 签名密钥，32+ 随机字符 |
-| `NEXT_PUBLIC_SITE_URL` | 站点公开地址 |
+| `DATABASE_URL` | PostgreSQL 连接串（Neon pooled connection string） |
+| `SESSION_SECRET` | JWT 签名密钥，32+ 随机字符；缺失或过短时应用拒绝启动 |
+| `NEXT_PUBLIC_SITE_URL` | 站点公开地址（用于 OG 图、CSRF 同源校验） |
+| `TRUST_PROXY` | 置 `true` 时信任 `x-forwarded-for` 首段作为客户端 IP（限流用） |
+| `VELUM_ALLOW_SEED` | 置 `1` 时允许生产环境执行 seed（否则需 `--force`） |
 
-## 架构（文字版）
+## 技术栈
+
+- **前端**：Next.js 15（App Router / RSC / Route Handlers / Server Actions）、TypeScript strict（含 `noUncheckedIndexedAccess`）、Tailwind CSS v4、Motion、next/font
+- **后端/数据**：PostgreSQL（Neon serverless）+ `@neondatabase/serverless`、Drizzle ORM + drizzle-kit、自研认证（scrypt N=32768 + jose JWT + 会话表撤销）、zod、自研 Markdown 渲染管线、d3-force
+- **测试**：Vitest（单元 + 真实 Postgres 集成测试）
+
+## 架构
 
 ```
-浏览器 ── ⌘K 命令面板 / 工作台 ──► Next.js App Router
-                                  ├─ /app/*        RSC + Server Actions（表单写操作）
-                                  ├─ /api/*        Route Handlers（JSON API，统一 {ok,data}/{ok,error} 信封）
-                                  └─ /u/*          公开花园 SSR + ISR（revalidate 300s）
-                                      │
-                                      ▼
-                          lib/auth.ts（scrypt 口令哈希 + jose JWT + Cookie）
-                          lib/markdown.ts（wiki-link 解析 + 安全子集渲染 + 消毒）
-                          lib/links.ts（links 表维护 / 反向链接）
+浏览器 ── 工作台 / ⌘K 面板 ──► Next.js App Router
+                              ├─ /app/*        RSC + Server Actions
+                              ├─ /api/*        Route Handlers（统一 {ok,data}/{ok,error} 信封）
+                              └─ /u/*          公开花园 SSR + ISR
+                                  │
+                              ▼
+                          lib/auth-service.ts（唯一鉴权入口：注册/登录/限流/审计）
+                          lib/auth.ts（scrypt 口令 + JWT + 会话表）
+                          lib/markdown.ts（wiki-link 解析 + 安全子集渲染 + 转义）
+                          lib/links.ts（links 表维护 / 悬空链接回填）
                           lib/search.ts（CJK 逐字切分 → tsvector）
                           lib/stats.ts（连续天数 / 热力图 / 孤儿笔记）
-                                      │
-                                      ▼
-                          Drizzle ORM（neon-http）→ Neon Postgres
-                          notes 表带生成列 content_tsv（to_tsvector）+ GIN 索引
+                                  │
+                                  ▼
+                          Drizzle ORM（neon-http）→ PostgreSQL
+                          notes.content_tsv 生成列（to_tsvector）+ GIN 索引
 ```
+
+### 关键架构决策（ADR）
+
+1. **FTS 中文分词**：生成列写入侧逐字切分 CJK（`regexp_replace`），查询侧用
+   `plainto_tsquery` + 同样切分，避免手工 tsquery 语法的传输脆弱性。
+2. **slug 方案**：ASCII 安全方案——中文标题取 sha1 哈希前缀（`n<hash>`），
+   冲突追加 `-2`。曾评估保留 Unicode slug，但中文 Windows 下 CJK 路径参数
+   编码会全量 404（已实测），ASCII 方案跨平台稳健。
+3. **一致性模型**：neon-http 无交互事务。「更新笔记 + 重建 links + 同步 tags」
+   三步不保证原子，但全部幂等——任何中间失败由 `reconcileNote` 重放收敛；
+   跨笔记的悬空链接由 `resolveDanglingLinks` 延迟对账。
+4. **迁移策略**：`drizzle-kit generate` 直接产出 tsvector 生成列；GIN 索引因
+   drizzle-kit 0.31 无 `using()` 支持，由手写迁移 `0001_gin_fts_index.sql` 维护；
+   `npm run migrate` 幂等执行全部文件。
+5. **会话撤销**：JWT 携带 jti 并登记 sessions 表；登出/改密即时失效，
+   代价是每次鉴权一次 DB 查询。
 
 ## API
 
 | 方法 | 路径 | 说明 | 鉴权 |
 | --- | --- | --- | --- |
-| POST | `/api/auth/register` | 注册（限流 10/分钟/IP） | — |
-| POST | `/api/auth/login` | 登录（401 通用文案） | — |
-| POST | `/api/auth/logout` | 登出 | — |
-| GET | `/api/me` | 当前用户 + 花园开关 | — |
-| GET | `/api/notes` | 游标分页列表（status/tag/q 过滤） | 会话 |
+| POST | `/api/auth/register` | 注册（IP+邮箱双维度限流） | — |
+| POST | `/api/auth/login` | 登录（失败计数 + 审计日志） | — |
+| POST | `/api/auth/logout` | 登出（撤销全部会话） | — |
+| GET | `/api/me` | 当前用户 | — |
+| GET | `/api/notes` | 游标分页列表 | 会话 |
 | POST | `/api/notes` | 创建（自动 slug） | 会话 |
-| GET | `/api/notes/:id` | 详情（含 outgoing） | 会话 |
-| PATCH | `/api/notes/:id` | 局部更新（重建 links） | 会话 |
-| DELETE | `/api/notes/:id` | 删除（级联清理） | 会话 |
+| GET/PATCH/DELETE | `/api/notes/:id` | 详情/更新（版本冲突 409）/删除 | 会话 |
 | GET | `/api/notes/:id/backlinks` | 反向链接 | 会话 |
-| GET | `/api/graph` | 图谱 nodes/edges | 会话 |
-| GET | `/api/search` | Postgres FTS（ts_rank + ts_headline 高亮） | 会话 |
+| GET | `/api/graph` | 图谱（上限 500 节点） | 会话 |
+| GET | `/api/search` | Postgres FTS + 高亮 | 会话 |
 | GET | `/api/stats` | 统计 + 热力图 | 会话 |
-| POST | `/api/export` | 导出 JSON / Markdown ZIP | 会话 |
+| POST | `/api/export` | JSON / Markdown ZIP 导出 | 会话 |
+| POST | `/api/account/delete` | 注销账号（级联清理） | 会话 |
 | GET | `/api/health` | 健康检查 | — |
 
-## 部署
+所有变更请求带 CSRF Origin/Referer 校验；缺失会话时返回 401，越权返回 403。
 
-本次交付使用 **Vercel 临时部署**（`vercel deploy --temporary`，无需登录，URL 可后续认领）：
+## 质量护栏
 
-```bash
-npx vercel build --no-symlinks --yes -e DATABASE_URL=... -e SESSION_SECRET=... -e NEXT_PUBLIC_SITE_URL=...
-npx vercel deploy --prebuilt --temporary --yes
-```
-
-> Windows 上 Vercel CLI 创建符号链接需要特权，故使用 `--no-symlinks`。
-> 有账号后可 `vercel link` → `vercel env add`（production）→ `vercel deploy --prod` 升级为正式部署。
-
-回退方案：`Dockerfile`（node:22-alpine + standalone 输出）+ Fly.io（`fly launch --generate-name`）。
-
-数据库由 Neon 提供；本次部署通过 Neon 的 Claimable 机制临时 provisioning（无需注册），
-项目 ID 与凭据记录在 `.secrets/`（已被 gitignore）。**需要手工认领**：见下方「认领数据库」。
-
-## 认领数据库（Neon Claimable）
-
-本项目当前连接的 Neon 项目是匿名 provisioning 的临时项目。若要长期保留：
+**本地**（每次改动后必须全绿）：
 
 ```bash
-npx neon claim accept --no-open   # 本地执行（持有 identity 凭据时），或按下方 HTTP 流程
+npm run lint            # ESLint（零错误零警告）
+npx tsc --noEmit        # TypeScript strict 零错误
+npm run test            # Vitest：单元测试必跑；集成测试无 DATABASE_URL 时自动跳过
+npm run build           # Next.js 生产构建
+npm run migrate         # 迁移幂等性
 ```
 
-HTTP 流程（POST `https://claimable.neon.tech/v1/projects/<project_id>/claim`，
-携带 Bearer token）会返回 `verification_uri_complete` 与 `user_code`；
-在 Neon 登录后访问该 URL 即可认领。认领完成前项目会过期。
+**CI**（`.github/workflows/ci.yml`，push/PR 触发）：
+
+```
+lint → tsc → test（postgres:16 服务容器，含集成测试）→ build
+```
+
+**测试覆盖率现状**：9 个测试文件、46 条断言，覆盖 wiki-link 解析、Markdown 渲染、
+搜索分词、统计聚合、限流器、口令哈希、CSRF、会话撤销、悬空链接回填（集成）。
+纯函数层覆盖率较高，`app/api/*` 路由层与前端交互层覆盖率低。
+**下一步目标**：路由层 mock 集成测试 + 编辑器保存/冲突流程 E2E，行覆盖 ≥ 70%。
 
 ## 已知限制
 
-- 限流为内存计数，仅适用于单实例部署（文档 §4.3 允许）
-- 中文 FTS 采用逐字切分，非专业分词器，对短语精确匹配有限
-- 图谱力导引为简化实现，无拖拽/缩放手势（桌面可点击节点跳转）
-- 移动端工作台降级为标签页布局
+- 中文 Windows 环境下 CJK 路径参数编码异常，slug 采用 ASCII 方案规避
+- FTS 为逐字切分，非专业中文分词器，短语精确匹配有限
+- 会话校验为每请求一次 DB 查询（单实例内存限流器，多实例需外部存储）
+- 图谱上限 500 节点 / 5000 边；导出上限 1000 篇
+- 移动端图谱为简化实现（无 pinch-zoom）
 
-## 质量门槛
+## 贡献
 
-```bash
-npm run lint && npx tsc --noEmit && npm run build && npm run test
-```
+见 [CONTRIBUTING.md](CONTRIBUTING.md)。安全漏洞按 [SECURITY.md](SECURITY.md) 披露。
+变更记录见 [CHANGELOG.md](CHANGELOG.md)。
+
+## 许可
+
+[MIT](LICENSE)
