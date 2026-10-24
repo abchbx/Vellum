@@ -79,7 +79,7 @@ function renderTable(lines: string[]): string {
   return `<table class="paper overflow-hidden my-8"><thead><tr class="bg-surface-2 text-left">${th}</tr></thead><tbody>${trs}</tbody></table>`;
 }
 
-export function renderMarkdown(md: string): string {
+export function renderMarkdown(md: string, slugMap?: Map<string, string>): string {
   const links = parseWikiLinks(md);
   const placeholders = new Map<string, WikiLink>();
   let stash = md;
@@ -186,9 +186,10 @@ export function renderMarkdown(md: string): string {
 
   let html = blocks.join('\n');
   for (const [key, l] of placeholders) {
+    const targetSlug = slugMap?.get(l.slug) ?? l.slug;
     html = html.replace(
       key,
-      `<a href="/u/${encodeURIComponent('demo')}/${encodeURIComponent(l.slug)}" class="vl-link link-underline font-medium">${escapeHtml(l.text)}</a>`,
+      `<a href="/u/${encodeURIComponent('demo')}/${encodeURIComponent(targetSlug)}" class="vl-link link-underline font-medium">${escapeHtml(l.text)}</a>`,
     );
   }
   return html;

@@ -57,7 +57,7 @@ export function CommandPalette() {
   }, [open]);
 
   useEffect(() => {
-    if (open && q.trim().length < 1) {
+    if (!open || q.trim().length < 1) {
       setItems([]);
       return;
     }

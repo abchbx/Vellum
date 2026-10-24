@@ -45,6 +45,12 @@ export default async function ReadNote({
       sql`${notes.authorId} = ${gardenUser.id}::uuid AND ${notes.id} IN (SELECT ${links.sourceId} FROM ${links} WHERE ${links.targetId} = ${row.id}::uuid)`,
     );
 
+  const authorNotes = await db
+    .select({ title: notes.title, slug: notes.slug })
+    .from(notes)
+    .where(sql`${notes.authorId} = ${gardenUser.id}::uuid`);
+  const slugMap = new Map(authorNotes.map((n) => [n.title, n.slug]));
+
   return (
     <div className="min-h-screen">
       <SiteHeader />
@@ -66,7 +72,7 @@ export default async function ReadNote({
 
         <article
           className="mt-10 text-[17px] leading-[1.85]"
-          dangerouslySetInnerHTML={{ __html: renderMarkdown(row.contentMd) }}
+          dangerouslySetInnerHTML={{ __html: renderMarkdown(row.contentMd, slugMap) }}
         />
 
         {backlinks.length > 0 && (
