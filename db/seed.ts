@@ -4,6 +4,7 @@ import { sql } from 'drizzle-orm';
 import { hashPassword } from '../lib/auth';
 import { excerptOf, readingMinutes } from '../lib/markdown';
 import { TAG_COLORS } from '../lib/zod';
+import { slugify } from './queries';
 
 const SEED_USER = {
   email: 'demo@vellum.app',
@@ -226,7 +227,7 @@ async function main() {
       .insert(notes)
       .values({
         authorId: demo.id,
-        slug: n.title.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '-'),
+        slug: slugify(n.title),
         title: n.title,
         contentMd: n.contentMd,
         excerpt: excerptOf(n.contentMd),
@@ -268,12 +269,7 @@ async function main() {
       const slug = slugRaw.toLowerCase();
       if (seen.has(slug)) continue;
       seen.add(slug);
-      const target = NOTES.find(
-        (t) =>
-          t.title
-            .toLowerCase()
-            .replace(/[^\p{L}\p{N}]+/gu, '-') === slug,
-      );
+      const target = NOTES.find((t) => slugify(t.title) === slug);
       const targetId = target ? byTitle.get(target.title) : null;
       await db
         .insert(links)

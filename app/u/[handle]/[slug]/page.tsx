@@ -16,17 +16,26 @@ export default async function ReadNote({
   params: Promise<{ handle: string; slug: string }>;
 }) {
   const { handle, slug } = await params;
-  const [user, note] = await Promise.all([
+  const recovered = Buffer.from(slug, 'latin1').toString('utf8');
+  const candidates = [slug, recovered].filter((s) => /^[\p{L}\p{N}-]+$/u.test(s));
+  const [user, noteRows] = await Promise.all([
     db.select().from(users).where(sql`${users.handle} = ${handle}`).limit(1),
-    db
-      .select()
-      .from(notes)
-      .where(sql`${notes.authorId} = (SELECT id FROM users WHERE handle = ${handle}) AND ${notes.slug} = ${slug}`)
-      .limit(1),
+    (async () => {
+      for (const c of candidates) {
+        const safe = c.replace(/'/g, "''");
+        const rows = await db
+          .select()
+          .from(notes)
+          .where(sql`${notes.authorId} = (SELECT id FROM users WHERE handle = ${handle}) AND ${notes.slug} = ${sql.raw(`'${safe}'`)}`)
+          .limit(1);
+        if (rows.length > 0) return rows;
+      }
+      return [] as typeof notes.$inferSelect[];
+    })(),
   ]);
 
   const gardenUser = user[0];
-  const row = note[0];
+  const row = noteRows[0];
   if (!gardenUser || !gardenUser.gardenPublic || !row || !row.published) notFound();
 
   const backlinks = await db

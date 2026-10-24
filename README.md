@@ -71,8 +71,17 @@ npm run dev
 
 ## 部署
 
-首选 Vercel：`vercel link` → `vercel env add`（production 写入上述三个变量）→ `vercel deploy --prod`。
-回退方案见 `Dockerfile` + Fly.io（`fly launch --generate-name`）。
+本次交付使用 **Vercel 临时部署**（`vercel deploy --temporary`，无需登录，URL 可后续认领）：
+
+```bash
+npx vercel build --no-symlinks --yes -e DATABASE_URL=... -e SESSION_SECRET=... -e NEXT_PUBLIC_SITE_URL=...
+npx vercel deploy --prebuilt --temporary --yes
+```
+
+> Windows 上 Vercel CLI 创建符号链接需要特权，故使用 `--no-symlinks`。
+> 有账号后可 `vercel link` → `vercel env add`（production）→ `vercel deploy --prod` 升级为正式部署。
+
+回退方案：`Dockerfile`（node:22-alpine + standalone 输出）+ Fly.io（`fly launch --generate-name`）。
 
 数据库由 Neon 提供；本次部署通过 Neon 的 Claimable 机制临时 provisioning（无需注册），
 项目 ID 与凭据记录在 `.secrets/`（已被 gitignore）。**需要手工认领**：见下方「认领数据库」。

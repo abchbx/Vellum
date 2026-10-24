@@ -4,23 +4,29 @@ import { links, noteTags, notes, tags, users } from './schema';
 import { excerptOf, readingMinutes } from '../lib/markdown';
 import { TAG_COLORS } from '../lib/zod';
 
+import { createHash } from 'node:crypto';
+
 export function slugify(raw: string, fallback = 'note'): string {
-  const base = raw
+  const ascii = raw
     .trim()
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, '-')
+    .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
-  return base.length > 0 ? base.slice(0, 80) : fallback;
+  if (ascii.length > 0) return ascii.slice(0, 80);
+  const hash = createHash('sha1').update(raw).digest('hex').slice(0, 8);
+  return `n${hash}`;
 }
 
 export async function uniqueSlug(authorId: string, title: string, ignoreId?: string) {
   const base = slugify(title);
-  let candidate = base;
+  const candidate0 = base;
+  let candidate = candidate0;
   for (let i = 2; i < 50; i++) {
+    const safe = candidate.replace(/'/g, "''");
     const rows = await db
       .select({ id: notes.id })
       .from(notes)
-      .where(sql`${notes.authorId} = ${authorId}::uuid AND ${notes.slug} = ${candidate}`)
+      .where(sql`${notes.authorId} = ${authorId}::uuid AND ${notes.slug} = ${sql.raw(`'${safe}'`)}`)
       .limit(1);
     if (rows.length === 0 || (ignoreId && rows[0]?.id === ignoreId)) return candidate;
     candidate = `${base}-${i}`;
@@ -102,25 +108,16 @@ export async function getNote(noteId: string) {
   return rows[0] ?? null;
 }
 
-export async function getTagsOfNote(noteId: string) {
-  return db.query.noteTags.findMany({
-    where: sql`${noteTags.noteId} = ${noteId}::uuid`,
-    with: { tags: true },
-  });
-}
-
 export async function searchNotes(authorId: string, rawQuery: string, limit = 20) {
-  const normalized = rawQuery.replace(/([一-鿿])/g, ' $1 ').replace(/[^\p{L}\p{N}]+/gu, ' ').trim().toLowerCase();
-  const lexemes = normalized.split(/\s+/).filter(Boolean);
-  if (lexemes.length === 0) return [];
-  const tsquery = lexemes.map((l) => `'${l.replace(/'/g, "''")}:*'`).join(' & ');
+  const normalized = rawQuery.trim();
+  if (!normalized) return [];
   return db.execute(sql`
     SELECT id, title, slug, excerpt, status, published,
-           ts_rank(content_tsv, to_tsquery('simple', ${sql.raw(`'${tsquery}'`)})) as rank_,
-           ts_headline(content_md, to_tsquery('simple', ${sql.raw(`'${tsquery}'`)}),
+           ts_rank(content_tsv, plainto_tsquery('simple', ${normalized})) as rank_,
+           ts_headline(content_md, plainto_tsquery('simple', ${normalized}),
              'MaxFragments=1, MaxWords=60, StartSel=<mark class="bg-accent/25 rounded px-0.5">, StopSel=</mark>') as snippet
     FROM notes
-    WHERE author_id = ${authorId}::uuid AND content_tsv @@ to_tsquery('simple', ${sql.raw(`'${tsquery}'`)})
+    WHERE author_id = ${authorId}::uuid AND content_tsv @@ plainto_tsquery('simple', ${normalized})
     ORDER BY rank_ DESC, updated_at DESC
     LIMIT ${limit}
   `);
