@@ -2,20 +2,15 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
-import {
-  hashPassword,
-  verifyPassword,
-  signToken,
-  clearSessionCookie,
-  getSessionUser,
-} from '@/lib/auth';
-import { registerSchema, loginSchema, noteUpdateSchema } from '@/lib/zod';
+import { headers } from 'next/headers';
+import { registerUser, loginUser } from '@/lib/auth-service';
+import { setSessionCookie, clearSessionCookie, getSessionUser } from '@/lib/auth';
+import { noteUpdateSchema } from '@/lib/zod';
 import { db } from '@/db';
-import { notes, users } from '@/db/schema';
+import { notes } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { uniqueSlug, syncTags, computeExcerpt, computeReadingMins } from '@/db/queries';
 import { rebuildLinksForNote } from '@/lib/links';
-import { cookies } from 'next/headers';
 
 export interface ActionResult {
   ok: boolean;
@@ -24,73 +19,27 @@ export interface ActionResult {
 
 export async function registerAction(prev: ActionResult | null, form: FormData): Promise<ActionResult> {
   void prev;
-  const email = String(form.get('email') ?? '');
-  const password = String(form.get('password') ?? '');
-  const handle = String(form.get('handle') ?? '');
-  const displayName = String(form.get('displayName') ?? '');
-
-  const parsed = registerSchema.safeParse({ email, password, handle, displayName });
-  if (!parsed.success) return { ok: false, error: '请检查邮箱、密码与 handle（3-24 位小写字母、数字、_、-）' };
-
-  const lowerEmail = email.toLowerCase();
-  const conflict = await db
-    .select({ id: users.id })
-    .from(users)
-    .where(sql`(lower(${users.email}) = ${lowerEmail} OR ${users.handle} = ${handle})`)
-    .limit(1);
-  if (conflict.length > 0) return { ok: false, error: '邮箱或 handle 已被注册' };
-
-  const [created] = await db
-    .insert(users)
-    .values({
-      email: lowerEmail,
-      handle,
-      passwordHash: hashPassword(password),
-      displayName: displayName || handle,
-    })
-    .returning({ id: users.id });
-  if (!created) return { ok: false, error: '注册失败，请重试' };
-
-  const token = await signToken(created.id);
-  const store = await cookies();
-  const isProd = process.env.NODE_ENV === 'production';
-  store.set('vl_session', token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60,
+  const h = await headers();
+  const result = await registerUser(h, {
+    email: String(form.get('email') ?? ''),
+    password: String(form.get('password') ?? ''),
+    handle: String(form.get('handle') ?? ''),
+    displayName: String(form.get('displayName') ?? ''),
   });
+  if (!result.ok) return { ok: false, error: result.error };
+  await setSessionCookie(result.token as string, process.env.NODE_ENV === 'production');
   redirect('/app');
 }
 
 export async function loginAction(prev: ActionResult | null, form: FormData): Promise<ActionResult> {
   void prev;
-  const email = String(form.get('email') ?? '');
-  const password = String(form.get('password') ?? '');
-
-  const parsed = loginSchema.safeParse({ email, password });
-  if (!parsed.success) return { ok: false, error: '请输入邮箱与密码' };
-
-  const rows = await db
-    .select()
-    .from(users)
-    .where(sql`lower(${users.email}) = ${email.toLowerCase()}`)
-    .limit(1);
-  const user = rows[0];
-  if (!user || !verifyPassword(password, user.passwordHash)) {
-    return { ok: false, error: '邮箱或密码不正确' };
-  }
-  const token = await signToken(user.id);
-  const store = await cookies();
-  const isProd = process.env.NODE_ENV === 'production';
-  store.set('vl_session', token, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60,
+  const h = await headers();
+  const result = await loginUser(h, {
+    email: String(form.get('email') ?? ''),
+    password: String(form.get('password') ?? ''),
   });
+  if (!result.ok) return { ok: false, error: result.error };
+  await setSessionCookie(result.token as string, process.env.NODE_ENV === 'production');
   redirect('/app');
 }
 
