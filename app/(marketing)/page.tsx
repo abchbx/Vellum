@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { SiteHeader } from '@/components/SiteHeader';
 import { Vine } from '@/components/Vine';
 import { CommandPalette } from '@/components/CommandPalette';
+import { Reveal } from '@/components/Reveal';
 import { db } from '@/db';
 import { notes, users } from '@/db/schema';
 import { sql } from 'drizzle-orm';
@@ -78,19 +79,21 @@ export default async function Landing() {
             知识不是按书架码放的，<br />
             是按藤蔓生长的。
           </div>
-          <div className="mt-14 grid gap-8 md:grid-cols-3">
-            {[
-              { n: '01', t: '写下 [[标题]]', d: '任何笔记里出现方括号，链接便自动成立，无需手动维护。' },
-              { n: '02', t: '反向链接显形', d: '被引用的那一刻，对方笔记的文末会长出一条归途。' },
-              { n: '03', t: '图谱连成网', d: '打开图谱页，所有链接汇成一幅力导引星图。' },
-            ].map((c) => (
-              <div key={c.n} className="paper group p-8 transition-transform duration-320 hover:-translate-y-1">
-                <span className="font-mono text-xs text-accent tabular">{c.n}</span>
-                <h3 className="mt-6 text-lg">{c.t}</h3>
-                <p className="mt-3 text-sm leading-relaxed text-muted">{c.d}</p>
-              </div>
-            ))}
-          </div>
+          <Reveal>
+            <div className="mt-14 grid gap-8 md:grid-cols-3">
+              {[
+                { n: '01', t: '写下 [[标题]]', d: '任何笔记里出现方括号，链接便自动成立，无需手动维护。' },
+                { n: '02', t: '反向链接显形', d: '被引用的那一刻，对方笔记的文末会长出一条归途。' },
+                { n: '03', t: '图谱连成网', d: '打开图谱页，所有链接汇成一幅力导引星图。' },
+              ].map((c) => (
+                <div key={c.n} className="paper group p-8 transition-transform duration-320 hover:-translate-y-1">
+                  <span className="font-mono text-xs text-accent tabular">{c.n}</span>
+                  <h3 className="mt-6 text-lg">{c.t}</h3>
+                  <p className="mt-3 text-sm leading-relaxed text-muted">{c.d}</p>
+                </div>
+              ))}
+            </div>
+          </Reveal>
         </div>
       </section>
 
@@ -102,7 +105,8 @@ export default async function Landing() {
             不是又一个编辑器，<br />
             是一座看得见的花园。
           </div>
-          {garden ? (
+          <Reveal>
+            {garden ? (
             <div className="paper mt-16 overflow-hidden">
               <div className="flex items-center gap-2 border-b border-line px-5 py-3">
                 <span className="h-2.5 w-2.5 rounded-full bg-line" />
@@ -166,6 +170,7 @@ export default async function Landing() {
               种子数据尚未就绪，登录后即可看到完整工作台。
             </div>
           )}
+          </Reveal>
         </div>
       </section>
 
@@ -176,22 +181,24 @@ export default async function Landing() {
           <div className="mt-6 max-w-[640px] font-serif text-3xl leading-snug md:text-4xl">
             每一篇笔记都有自己的季节。
           </div>
-          <div className="mt-16 grid gap-12 md:grid-cols-3">
-            {[
-              { t: 'Seedling 幼苗', d: '刚写下的想法，尚未展开。属于你一个人的春天。', c: 'var(--seedling)' },
-              { t: 'Budding 抽芽', d: '有了结构，开始链接别人。藤蔓找到了支架。', c: 'var(--budding)' },
-              { t: 'Evergreen 常青', d: '经得起重读，可以公开。成为花园里永远的绿。', c: 'var(--evergreen)' },
-            ].map((s) => (
-              <div key={s.t}>
-                <div className="h-px w-full bg-line" />
-                <div className="mt-4 flex items-center gap-3">
-                  <span className="h-3 w-3 rounded-full" style={{ background: s.c }} />
-                  <h3 className="font-serif text-xl">{s.t}</h3>
+          <Reveal>
+            <div className="mt-16 grid gap-12 md:grid-cols-3">
+              {[
+                { t: 'Seedling 幼苗', d: '刚写下的想法，尚未展开。属于你一个人的春天。', c: 'var(--seedling)' },
+                { t: 'Budding 抽芽', d: '有了结构，开始链接别人。藤蔓找到了支架。', c: 'var(--budding)' },
+                { t: 'Evergreen 常青', d: '经得起重读，可以公开。成为花园里永远的绿。', c: 'var(--evergreen)' },
+              ].map((s) => (
+                <div key={s.t}>
+                  <div className="h-px w-full bg-line" />
+                  <div className="mt-4 flex items-center gap-3">
+                    <span className="h-3 w-3 rounded-full" style={{ background: s.c }} />
+                    <h3 className="font-serif text-xl">{s.t}</h3>
+                  </div>
+                  <p className="mt-4 text-sm leading-relaxed text-muted">{s.d}</p>
                 </div>
-                <p className="mt-4 text-sm leading-relaxed text-muted">{s.d}</p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </Reveal>
           <div className="mt-24 text-center">
             <Link href="/register" className="btn btn-accent">
               种下第一株幼苗
