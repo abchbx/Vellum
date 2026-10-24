@@ -21,6 +21,29 @@ export interface EditorNote {
 
 type SaveState = 'idle' | 'saving' | 'saved' | 'error';
 
+interface ToolDef {
+  key: string;
+  label: string;
+  title: string;
+  apply: (selected: string) => string;
+}
+
+const TOOLS: ToolDef[] = [
+  { key: 'h1', label: 'H1', title: '一级标题', apply: (s) => `# ${s || '标题'}\n` },
+  { key: 'h2', label: 'H2', title: '二级标题', apply: (s) => `## ${s || '标题'}\n` },
+  { key: 'h3', label: 'H3', title: '三级标题', apply: (s) => `### ${s || '标题'}\n` },
+  { key: 'bold', label: 'B', title: '粗体', apply: (s) => `**${s || '粗体'}**` },
+  { key: 'italic', label: 'I', title: '斜体', apply: (s) => `*${s || '斜体'}*` },
+  { key: 'quote', label: '❝', title: '引用', apply: (s) => `> ${s || '引用'}\n` },
+  { key: 'ul', label: '•', title: '列表', apply: (s) => `- ${s || '列表项'}\n` },
+  { key: 'ol', label: '1.', title: '有序列表', apply: (s) => `1. ${s || '列表项'}\n` },
+  { key: 'code', label: '</>', title: '代码块', apply: (s) => '\n```\n' + (s || '代码') + '\n```\n' },
+  { key: 'link', label: '🔗', title: '链接', apply: (s) => `[${s || '文字'}](https://)` },
+  { key: 'wiki', label: '[[', title: '双向链接', apply: (s) => `[[${s || '笔记标题'}]]` },
+  { key: 'table', label: '▦', title: '表格', apply: () => `\n| 列 A | 列 B |\n|---|---|\n| 值 | 值 |\n` },
+  { key: 'image', label: '🖼', title: '图片', apply: (s) => `![${s || '描述'}](https://)` },
+];
+
 export function NoteEditor({ note }: { note: EditorNote | null }) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -32,6 +55,7 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
   const [preview, setPreview] = useState(false);
   const dirtyRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
     if (!note) return;
@@ -101,6 +125,26 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [saveNow]);
 
+  const applyTool = useCallback(
+    (tool: ToolDef) => {
+      const ta = textareaRef.current;
+      if (!ta) return;
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const selected = content.slice(start, end);
+      const replaced = tool.apply(selected);
+      const next = content.slice(0, start) + replaced + content.slice(end);
+      setContent(next);
+      markDirty();
+      requestAnimationFrame(() => {
+        ta.focus();
+        const pos = start + replaced.length;
+        ta.setSelectionRange(Math.max(start, pos - replaced.length), pos);
+      });
+    },
+    [content, markDirty],
+  );
+
   if (!note) {
     return (
       <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-4 text-center">
@@ -118,6 +162,9 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
     setTagInput('');
     markDirty();
   };
+
+  const wordCount = content.length;
+  const readMins = Math.max(1, Math.round((content.match(/[一-鿿]/g)?.length ?? 0) / 350));
 
   return (
     <div className="flex h-full flex-col">
@@ -180,8 +227,8 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
       </div>
 
       <div className="flex flex-1 overflow-hidden">
-        <div className={`flex-1 overflow-y-auto ${preview ? 'hidden md:block' : ''}`}>
-          <div className="mx-auto max-w-[680px] px-6 py-10">
+        <div className={`flex-1 flex flex-col overflow-hidden ${preview ? 'hidden md:flex' : ''}`}>
+          <div className="mx-auto w-full max-w-[680px] px-6 pt-8">
             <input
               value={title}
               onChange={(e) => {
@@ -223,8 +270,30 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
                 className="w-24 bg-transparent text-[11px] text-muted outline-none placeholder:text-muted/50"
               />
             </div>
-            <div className="my-8 h-px bg-line" />
+          </div>
+
+          <div className="mx-auto mt-2 w-full max-w-[680px] px-6">
+            <div className="my-6 h-px bg-line" />
+            <div className="flex flex-wrap items-center gap-1 border-b border-line pb-2">
+              {TOOLS.map((tool) => (
+                <button
+                  key={tool.key}
+                  type="button"
+                  title={tool.title}
+                  aria-label={tool.title}
+                  onClick={() => applyTool(tool)}
+                  className="grid h-8 min-w-8 place-items-center rounded-md px-1.5 text-sm text-muted transition-colors hover:bg-surface-2 hover:text-ink"
+                >
+                  {tool.label}
+                </button>
+              ))}
+              <span className="ml-auto font-mono text-[10px] text-muted/60">Markdown 工具栏</span>
+            </div>
+          </div>
+
+          <div className="mx-auto flex-1 w-full max-w-[680px] overflow-y-auto px-6 pb-10">
             <textarea
+              ref={textareaRef}
               value={content}
               onChange={(e) => {
                 setContent(e.target.value);
@@ -232,7 +301,7 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
               }}
               placeholder={'在这里种下想法。\n\n用 [[双向链接]] 指向另一篇笔记，链接会自动长出来。'}
               className="w-full resize-none bg-transparent font-sans text-[17px] leading-[1.7] text-ink outline-none placeholder:text-muted/50"
-              style={{ minHeight: '50vh' }}
+              style={{ minHeight: '40vh' }}
             />
           </div>
         </div>
@@ -245,14 +314,16 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
         )}
       </div>
 
-      <div className="flex items-center gap-4 border-t border-line px-6 py-3">
-        <button type="button" onClick={() => setPreview((p) => !p)} className="text-xs text-muted hover:text-ink">
-          {preview ? '编辑' : '预览'}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-line px-6 py-3">
+        <button type="button" onClick={() => setPreview((p) => !p)} className="text-xs text-muted transition-colors hover:text-ink">
+          {preview ? '← 返回编辑' : '预览 →'}
         </button>
-        <span className="font-mono text-[11px] text-muted tabular">
-          {content.length} 字 · 约 {Math.max(1, Math.round((content.match(/[一-鿿]/g)?.length ?? 0) / 350))} 分钟
+        <span className="font-mono text-[11px] tabular text-muted">
+          {wordCount} 字 · 约 {readMins} 分钟阅读
         </span>
-        <span className="ml-auto font-mono text-[11px] tabular text-muted">⌘S 保存 · ⌘↵ 发布 · Esc 收起</span>
+        <span className="font-mono text-[11px] tabular text-muted">
+          ⌘S 保存 · ⌘↵ 发布 · 自动保存已开启
+        </span>
       </div>
     </div>
   );
