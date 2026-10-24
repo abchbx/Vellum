@@ -1,10 +1,12 @@
 import { db } from './index';
-import { links, noteTags, notes, tags, users } from './schema';
+import { noteTags, notes, tags, users } from './schema';
+
 import { sql } from 'drizzle-orm';
 import { hashPassword } from '../lib/auth';
 import { excerptOf, readingMinutes } from '../lib/markdown';
 import { TAG_COLORS } from '../lib/zod';
 import { slugify } from './queries';
+import { rebuildLinksForNote, resolveDanglingLinks } from '../lib/links';
 
 const SEED_USER = {
   email: 'demo@vellum.app',
@@ -178,13 +180,55 @@ Vellum 支持两种导出：JSON（带完整元数据）与 Markdown ZIP（适�
   },
 ];
 
+async function confirm(question: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    process.stdin.resume();
+    process.stdout.write(question);
+    process.stdin.once('data', (data: Buffer) => {
+      process.stdin.pause();
+      resolve(String(data).trim().toLowerCase() === 'y');
+    });
+  });
+}
+
 async function main() {
-  console.log('[seed] clearing tables…');
-  await db.delete(links);
-  await db.delete(noteTags);
-  await db.delete(tags);
-  await db.delete(notes);
-  await db.delete(users).where(sql`${users.handle} = ${SEED_USER.handle}`);
+  const force = process.argv.includes('--force');
+  const allowSeed = process.env.VELUM_ALLOW_SEED === '1';
+  if (process.env.NODE_ENV === 'production' && !force && !allowSeed) {
+    console.error('[seed] 拒绝执行：生产环境需显式 --force 或 VELUM_ALLOW_SEED=1');
+    process.exit(1);
+  }
+  const interactive = !!process.stdin.isTTY;
+
+  const existing = await db.select().from(users).where(sql`${users.handle} = ${SEED_USER.handle}`).limit(1);
+  const seedUser = existing[0];
+
+  if (seedUser) {
+    const counts = await db.execute(sql`
+      SELECT
+        (SELECT count(*)::int FROM notes WHERE author_id = ${seedUser.id}::uuid) as notes,
+        (SELECT count(*)::int FROM tags WHERE author_id = ${seedUser.id}::uuid) as tags,
+        (SELECT count(*)::int FROM links WHERE source_id IN (SELECT id FROM notes WHERE author_id = ${seedUser.id}::uuid)) as links
+    `);
+    const row = counts.rows[0] as { notes: number; tags: number; links: number };
+    console.log(
+      `[seed] 将删除 seed 用户 ${SEED_USER.handle} 的 ${row.notes} 篇笔记、${row.tags} 个标签、${row.links} 条链接`,
+    );
+    if (!force && !allowSeed && !interactive) {
+      console.error('[seed] 非交互环境需 --force 或 VELUM_ALLOW_SEED=1 确认');
+      process.exit(1);
+    }
+    if (!(force || allowSeed) && !(await confirm('确认删除并重建？(y/N) '))) {
+      console.log('[seed] 已取消');
+      process.exit(0);
+    }
+    // 级联删除：notes 删除级联 links(source) 与 note_tags；users 删除级联 tags
+    await db.delete(notes).where(sql`${notes.authorId} = ${seedUser.id}::uuid`);
+    await db.delete(users).where(sql`${users.id} = ${seedUser.id}::uuid`);
+    console.log('[seed] seed 数据已清空');
+  } else {
+    console.log('[seed] 未发现 seed 用户，跳过清理');
+  }
 
   console.log('[seed] creating demo user…');
   const [demo] = await db
@@ -255,32 +299,9 @@ async function main() {
 
   console.log('[seed] rebuilding links…');
   for (const n of NOTES) {
-    const content = await db
-      .select({ contentMd: notes.contentMd })
-      .from(notes)
-      .where(sql`${notes.id} = ${byTitle.get(n.title)}::uuid`)
-      .limit(1);
-    const md = content[0]?.contentMd ?? '';
-    const slugRe = /\[\[([^\][|]+)(?:\|[^\][]+)?\]\]/g;
-    const seen = new Set<string>();
-    let m: RegExpExecArray | null;
-    while ((m = slugRe.exec(md)) !== null) {
-      const slugRaw = (m[1] ?? '').trim();
-      const slug = slugRaw.toLowerCase();
-      if (seen.has(slug)) continue;
-      seen.add(slug);
-      const target = NOTES.find((t) => slugify(t.title) === slugify(slugRaw));
-      const targetId = target ? byTitle.get(target.title) : null;
-      await db
-        .insert(links)
-        .values({
-          sourceId: byTitle.get(n.title) as string,
-          targetSlug: slugRaw,
-          targetId: targetId ?? null,
-        })
-        .onConflictDoNothing();
-    }
+    await rebuildLinksForNote(byTitle.get(n.title) as string, demo.id);
   }
+  await resolveDanglingLinks(demo.id);
 
   const count = await db.execute(sql`SELECT count(*)::int as c FROM notes`);
   console.log(`[seed] done. notes=${(count.rows[0] as { c: number } | undefined)?.c ?? 0}`);
