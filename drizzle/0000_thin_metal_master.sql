@@ -25,7 +25,7 @@ CREATE TABLE "notes" (
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"published_at" timestamp with time zone,
-	"content_tsv" text GENERATED ALWAYS AS (to_tsvector('simple', regexp_replace(lower(coalesce(title, '') || ' ' || coalesce(content_md, '')), '([一-鿿])', '  ', 'g'))) STORED NOT NULL
+	"content_tsv" "tsvector" GENERATED ALWAYS AS (to_tsvector('simple', regexp_replace(lower(coalesce(title, '') || ' ' || coalesce(content_md, '')), '([一-鿿])', ' \1 ', 'g'))) STORED NOT NULL
 );
 --> statement-breakpoint
 CREATE TABLE "tags" (

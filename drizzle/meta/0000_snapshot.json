@@ -1,5 +1,5 @@
 {
-  "id": "1cc30847-9755-47a5-a873-02adbce7b11f",
+  "id": "e28d17ba-288a-4aa9-a2ff-544ac6b6056a",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -267,11 +267,11 @@
         },
         "content_tsv": {
           "name": "content_tsv",
-          "type": "text",
+          "type": "tsvector",
           "primaryKey": false,
           "notNull": true,
           "generated": {
-            "as": "",
+            "as": "to_tsvector('simple', regexp_replace(lower(coalesce(title, '') || ' ' || coalesce(content_md, '')), '([一-鿿])', ' \\1 ', 'g'))",
             "type": "stored"
           }
         }

@@ -14,12 +14,16 @@
 ```bash
 npm install
 cp .env.example .env.local   # 填入 DATABASE_URL / SESSION_SECRET / NEXT_PUBLIC_SITE_URL
-npm run push-db              # drizzle-kit push 建表
+npm run migrate              # 应用 drizzle/ 下的迁移（幂等）
 npm run seed                 # 灌入 12 篇互链笔记 + demo 账号
 npm run dev
 ```
 
 演示账号：`demo@vellum.app` / `demo1234`（handle: `demo`，花园已公开：`/u/demo`）。
+
+> 迁移说明：`drizzle-kit generate` 可直接产出正确的 `tsvector` 生成列；GIN 索引因
+> drizzle-kit 0.31 的 `index()` 不支持 `using('gin')`，由手写迁移
+> `drizzle/0001_gin_fts_index.sql` 维护（已在 journal 登记，`npm run migrate` 幂等执行）。
 
 ## 环境变量
 

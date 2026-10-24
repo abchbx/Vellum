@@ -9,9 +9,9 @@
     "lint": "eslint",
     "test": "vitest run",
     "seed": "tsx --env-file=.env.local db/seed.ts",
+    "migrate": "tsx scripts/migrate.ts",
     "push-db": "drizzle-kit push",
-    "generate-db": "drizzle-kit generate",
-    "ensure-indexes": "tsx scripts/ensure-indexes.ts"
+    "generate-db": "drizzle-kit generate"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.2.0",
