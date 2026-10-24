@@ -236,7 +236,7 @@ async function main() {
     .values({
       email: SEED_USER.email,
       handle: SEED_USER.handle,
-      passwordHash: hashPassword(SEED_USER.password),
+      passwordHash: await hashPassword(SEED_USER.password),
       displayName: SEED_USER.displayName,
       bio: SEED_USER.bio,
       gardenPublic: true,

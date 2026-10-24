@@ -1,4 +1,4 @@
-import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
@@ -22,13 +22,27 @@ const SESSION_SECRET = loadSecret();
 export const SESSION_COOKIE = 'vl_session';
 const SESSION_DAYS = 7;
 
-const SCRYPT_N = 16384;
+const SCRYPT_N = 32768;
 const SCRYPT_r = 8;
 const SCRYPT_p = 1;
+const SCRYPT_KEYLEN = 64;
+const SCRYPT_MAXMEM = 64 * 1024 * 1024;
 
-export function hashPassword(password: string): string {
+export function scryptParams() {
+  return { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p };
+}
+
+export async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16);
-  const hash = scryptSync(password, salt, 64, { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p });
+  const hash = await new Promise<Buffer>((resolve, reject) => {
+    scrypt(
+      password,
+      salt,
+      SCRYPT_KEYLEN,
+      { N: SCRYPT_N, r: SCRYPT_r, p: SCRYPT_p, maxmem: SCRYPT_MAXMEM },
+      (err, d) => (err ? reject(err) : resolve(d)),
+    );
+  });
   return [
     'scrypt',
     SCRYPT_N,
@@ -39,18 +53,19 @@ export function hashPassword(password: string): string {
   ].join('$');
 }
 
-export function verifyPassword(password: string, stored: string): boolean {
+export async function verifyPassword(password: string, stored: string): Promise<boolean> {
   try {
     const parts = stored.split('$');
-    const n = parts[1];
-    const r = parts[2];
-    const p = parts[3];
     const salt = Buffer.from(parts[4] ?? '', 'base64');
     const expected = Buffer.from(parts[5] ?? '', 'base64');
-    const actual = scryptSync(password, salt, 64, {
-      N: Number(n),
-      r: Number(r),
-      p: Number(p),
+    const actual = await new Promise<Buffer>((resolve, reject) => {
+      scrypt(
+        password,
+        salt,
+        expected.length,
+        { N: Number(parts[1]), r: Number(parts[2]), p: Number(parts[3]), maxmem: SCRYPT_MAXMEM },
+        (err, d) => (err ? reject(err) : resolve(d)),
+      );
     });
     return actual.length === expected.length && timingSafeEqual(actual, expected);
   } catch {

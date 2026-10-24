@@ -108,7 +108,7 @@ export async function registerUser(headers: Headers, body: unknown): Promise<Aut
     .values({
       email: lowerEmail,
       handle,
-      passwordHash: hashPassword(password),
+      passwordHash: await hashPassword(password),
       displayName: displayName ?? handle,
     })
     .returning({ id: users.id, handle: users.handle });
@@ -142,11 +142,20 @@ export async function loginUser(headers: Headers, body: unknown): Promise<AuthRe
     .where(sql`lower(${users.email}) = ${email}`)
     .limit(1);
   const user = rows[0];
-  if (!user || !verifyPassword(parsed.data.password, user.passwordHash)) {
+  if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     authLimiter.record(failKey, WINDOW);
     return { ok: false, error: '邮箱或密码不正确', status: 401 };
   }
   authLimiter.reset(failKey);
+
+  // 旧参数哈希（N<32768）在登录成功后静默升级
+  const stored = user.passwordHash;
+  if (stored.startsWith('scrypt$') && Number(stored.split('$')[1]) < 32768) {
+    await db
+      .update(users)
+      .set({ passwordHash: await hashPassword(parsed.data.password) })
+      .where(sql`${users.id} = ${user.id}::uuid`);
+  }
 
   const token = await signToken(user.id);
   return { ok: true, user: { id: user.id, handle: user.handle }, token };
