@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { ZodError } from 'zod';
 
 export class HttpError extends Error {
@@ -19,6 +19,34 @@ export function isUuid(v: string): boolean {
 
 export function ok<T>(data: T, init?: ResponseInit) {
   return NextResponse.json({ ok: true, data }, init);
+}
+
+export function csrfOk(req: NextRequest): boolean {
+  const method = req.method.toUpperCase();
+  if (method === 'GET' || method === 'HEAD' || method === 'OPTIONS') return true;
+  const hasSessionCookie = !!req.cookies.get('vl_session')?.value;
+  if (!hasSessionCookie) return true;
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const origin = req.headers.get('origin');
+  if (origin) {
+    if (siteUrl && origin === siteUrl) return true;
+    try {
+      return !siteUrl || new URL(origin).origin === req.nextUrl.origin;
+    } catch {
+      return false;
+    }
+  }
+  const referer = req.headers.get('referer');
+  if (referer) {
+    try {
+      const ref = new URL(referer);
+      if (!siteUrl) return ref.origin === req.nextUrl.origin;
+      return ref.origin === new URL(siteUrl).origin;
+    } catch {
+      return false;
+    }
+  }
+  return false;
 }
 
 export function fail(status: number, code: string, message: string) {

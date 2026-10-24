@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { headers } from 'next/headers';
 import { registerUser, loginUser } from '@/lib/auth-service';
-import { setSessionCookie, clearSessionCookie, getSessionUser } from '@/lib/auth';
+import { setSessionCookie, clearSessionCookie, getSessionUser, revokeAllSessions } from '@/lib/auth';
 import { noteUpdateSchema } from '@/lib/zod';
 import { db } from '@/db';
 import { notes } from '@/db/schema';
@@ -44,6 +44,8 @@ export async function loginAction(prev: ActionResult | null, form: FormData): Pr
 }
 
 export async function logoutAction(): Promise<ActionResult> {
+  const user = await getSessionUser();
+  if (user) await revokeAllSessions(user.id);
   await clearSessionCookie();
   redirect('/');
 }

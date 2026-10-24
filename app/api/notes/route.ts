@@ -5,7 +5,7 @@ import { notes } from '@/db/schema';
 import { noteCreateSchema } from '@/lib/zod';
 import { uniqueSlug, syncTags, computeExcerpt, computeReadingMins, listNotes } from '@/db/queries';
 import { rebuildLinksForNote, resolveDanglingLinks } from '@/lib/links';
-import { ok, fail, handleError } from '@/lib/http';
+import { ok, fail, handleError, csrfOk } from '@/lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -33,6 +33,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
+    if (!csrfOk(req)) return fail(403, 'CSRF', '请求来源校验失败');
     const user = await requireUserFromRequest(req);
     const body = await req.json().catch(() => null);
     const parsed = noteCreateSchema.safeParse(body);

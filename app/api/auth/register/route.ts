@@ -1,13 +1,14 @@
 import { NextRequest } from 'next/server';
 import { registerUser } from '@/lib/auth-service';
 import { setSessionCookie } from '@/lib/auth';
-import { ok, fail, handleError } from '@/lib/http';
+import { ok, fail, handleError, csrfOk } from '@/lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    if (!csrfOk(req)) return fail(403, 'CSRF', '请求来源校验失败');
     const body = await req.json().catch(() => null);
     const result = await registerUser(req.headers, body);
     if (!result.ok) {

@@ -6,7 +6,7 @@ import { sql } from 'drizzle-orm';
 import { noteUpdateSchema } from '@/lib/zod';
 import { syncTags, computeExcerpt, computeReadingMins } from '@/db/queries';
 import { rebuildLinksForNote, resolveDanglingLinks } from '@/lib/links';
-import { ok, fail, handleError, isUuid } from '@/lib/http';
+import { ok, fail, handleError, isUuid, csrfOk } from '@/lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -40,6 +40,7 @@ export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string 
 
 export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    if (!csrfOk(req)) return fail(403, 'CSRF', '请求来源校验失败');
     const user = await requireUserFromRequest(req);
     const { id } = await ctx.params;
     if (!isUuid(id)) return fail(404, 'NOT_FOUND', '笔记不存在');
@@ -82,6 +83,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
 export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
+    if (!csrfOk(req)) return fail(403, 'CSRF', '请求来源校验失败');
     const user = await requireUserFromRequest(req);
     const { id } = await ctx.params;
     if (!isUuid(id)) return fail(404, 'NOT_FOUND', '笔记不存在');

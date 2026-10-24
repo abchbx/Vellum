@@ -1,7 +1,7 @@
 import { registerSchema, loginSchema } from './zod';
-import { hashPassword, verifyPassword, signToken } from './auth';
+import { hashPassword, verifyPassword, signToken, createSession } from './auth';
 import { db } from '../db';
-import { users } from '../db/schema';
+import { auditLogs, users } from '../db/schema';
 import { sql } from 'drizzle-orm';
 
 export interface AuthResult {
@@ -115,7 +115,8 @@ export async function registerUser(headers: Headers, body: unknown): Promise<Aut
   if (!created) return { ok: false, error: '注册失败，请重试', status: 500 };
 
   const token = await signToken(created.id);
-  return { ok: true, user: { id: created.id, handle: created.handle }, token };
+  await createSession(created.id, token.jti);
+  return { ok: true, user: { id: created.id, handle: created.handle }, token: token.token };
 }
 
 export async function loginUser(headers: Headers, body: unknown): Promise<AuthResult> {
@@ -144,6 +145,9 @@ export async function loginUser(headers: Headers, body: unknown): Promise<AuthRe
   const user = rows[0];
   if (!user || !(await verifyPassword(parsed.data.password, user.passwordHash))) {
     authLimiter.record(failKey, WINDOW);
+    await db
+      .insert(auditLogs)
+      .values({ userId: user?.id ?? null, event: 'login_failed', ip });
     return { ok: false, error: '邮箱或密码不正确', status: 401 };
   }
   authLimiter.reset(failKey);
@@ -158,5 +162,6 @@ export async function loginUser(headers: Headers, body: unknown): Promise<AuthRe
   }
 
   const token = await signToken(user.id);
-  return { ok: true, user: { id: user.id, handle: user.handle }, token };
+  await createSession(user.id, token.jti);
+  return { ok: true, user: { id: user.id, handle: user.handle }, token: token.token };
 }

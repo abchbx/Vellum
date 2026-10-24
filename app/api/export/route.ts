@@ -4,13 +4,14 @@ import { db } from '@/db';
 import { noteTags, notes, tags } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { buildZip } from '@/lib/zip';
-import { fail, handleError } from '@/lib/http';
+import { fail, handleError, csrfOk } from '@/lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function POST(req: NextRequest) {
   try {
+    if (!csrfOk(req)) return fail(403, 'CSRF', '请求来源校验失败');
     const user = await requireUserFromRequest(req);
     const body = await req.json().catch(() => null);
     const format = body?.format === 'json' ? 'json' : 'md-zip';

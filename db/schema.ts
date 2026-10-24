@@ -115,6 +115,37 @@ export const links = pgTable(
   }),
 );
 
+export const sessions = pgTable(
+  'sessions',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    jti: text('jti').notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+  },
+  (table) => ({
+    jtiUid: uniqueIndex('sessions_jti_uidx').on(table.jti),
+    userIdx: index('sessions_user_idx').on(table.userId),
+  }),
+);
+
+export const auditLogs = pgTable(
+  'audit_logs',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+    event: text('event').notNull(),
+    ip: text('ip').notNull().default(''),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    userIdx: index('audit_logs_user_idx').on(table.userId),
+  }),
+);
+
 export type User = typeof users.$inferSelect;
 export type Note = typeof notes.$inferSelect;
 export type Tag = typeof tags.$inferSelect;

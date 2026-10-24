@@ -1,10 +1,10 @@
-import { randomBytes, scrypt, timingSafeEqual } from 'node:crypto';
+import { randomBytes, scrypt, timingSafeEqual, randomUUID } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
 import { sql } from 'drizzle-orm';
 import { db } from '../db';
-import { users } from '../db/schema';
+import { users, sessions as sessionsTable } from '../db/schema';
 import { HttpError } from './http';
 
 function loadSecret(): Uint8Array {
@@ -73,18 +73,42 @@ export async function verifyPassword(password: string, stored: string): Promise<
   }
 }
 
-export async function signToken(userId: string): Promise<string> {
-  return new SignJWT({ sub: userId })
+export async function signToken(userId: string): Promise<{ token: string; jti: string }> {
+  const jti = randomUUID();
+  const token = await new SignJWT({ sub: userId, jti })
     .setProtectedHeader({ alg: 'HS256' })
     .setIssuedAt()
     .setExpirationTime(`${SESSION_DAYS}d`)
     .sign(SESSION_SECRET);
+  return { token, jti };
+}
+
+export async function createSession(userId: string, jti: string): Promise<void> {
+  const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60_000);
+  await db
+    .insert(sessionsTable)
+    .values({ userId, jti, expiresAt })
+    .onConflictDoNothing();
+}
+
+export async function revokeAllSessions(userId: string): Promise<void> {
+  await db.delete(sessionsTable).where(sql`${sessionsTable.userId} = ${userId}::uuid`);
 }
 
 export async function verifyToken(token: string): Promise<string | null> {
   try {
     const { payload } = await jwtVerify(token, SESSION_SECRET);
-    return typeof payload.sub === 'string' ? payload.sub : null;
+    if (typeof payload.sub !== 'string' || typeof payload.jti !== 'string') return null;
+    const rows = await db
+      .select({ id: sessionsTable.id, expiresAt: sessionsTable.expiresAt })
+      .from(sessionsTable)
+      .where(sql`${sessionsTable.jti} = ${payload.jti}`)
+      .limit(1);
+    const session = rows[0];
+    if (!session) return null;
+    const expires = session.expiresAt instanceof Date ? session.expiresAt : new Date(session.expiresAt);
+    if (expires.getTime() <= Date.now()) return null;
+    return payload.sub;
   } catch {
     return null;
   }
