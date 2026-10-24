@@ -22,6 +22,11 @@ export function CommandPalette() {
   const listRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
+  const go = useCallback((item: SearchItem) => {
+    setOpen(false);
+    router.push(`/app?note=${item.id}`);
+  }, [router]);
+
   const openPalette = useCallback(() => setOpen(true), []);
 
   useEffect(() => {
@@ -92,16 +97,11 @@ export function CommandPalette() {
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [open, items, active]);
+  }, [open, items, active, go]);
 
   useEffect(() => {
     listRef.current?.querySelector<HTMLElement>(`[data-idx="${active}"]`)?.scrollIntoView({ block: 'nearest' });
   }, [active]);
-
-  const go = (item: SearchItem) => {
-    setOpen(false);
-    router.push(`/app?note=${item.id}`);
-  };
 
   if (!open) {
     return (

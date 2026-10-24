@@ -2,12 +2,10 @@
 
 import { useActionState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
-import { loginAction } from '@/actions';
+import { loginAction } from '@/app/actions';
 
 export default function LoginPage() {
   const [state, formAction] = useActionState(loginAction, { ok: false });
-  const router = useRouter();
 
   return (
     <div className="mx-auto flex min-h-[86vh] w-full max-w-[420px] flex-col justify-center px-6 py-16">

@@ -17,8 +17,11 @@ describe('全文搜索分词', () => {
     expect(buildSearchSql('   ')).toBeNull();
   });
 
-  it('引号被转义', () => {
-    const r = buildSearchSql('it\'s');
-    expect(r?.query).toContain('\\');
+  it('引号等特殊字符不破坏查询结构', () => {
+    const r = buildSearchSql("it's 花园!");
+    expect(r?.query).toContain("'it:*'");
+    expect(r?.query).toContain("'s:*'");
+    expect(r?.query).toContain("'花:*'");
+    expect(r?.query).toContain("'园:*'");
   });
 });

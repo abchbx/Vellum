@@ -8,8 +8,15 @@ import {
   pgEnum,
   uniqueIndex,
   index,
-  sql,
+  customType,
 } from 'drizzle-orm/pg-core';
+import { sql } from 'drizzle-orm/sql';
+
+const tsvectorType = customType<{ data: string }>({
+  dataType() {
+    return 'tsvector';
+  },
+});
 
 export const noteStatusEnum = pgEnum('note_status', ['seedling', 'budding', 'evergreen']);
 
@@ -46,9 +53,9 @@ export const notes = pgTable(
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
     publishedAt: timestamp('published_at', { withTimezone: true }),
-    contentTsv: text('content_tsv')
+    contentTsv: tsvectorType('content_tsv')
       .generatedAlwaysAs(
-        sql`to_tsvector('simple', regexp_replace(lower(coalesce(${table.title}, '') || ' ' || coalesce(${table.contentMd}, '')), '([一-鿿])', ' \1 ', 'g'))`,
+        sql`to_tsvector('simple', regexp_replace(lower(coalesce(title, '') || ' ' || coalesce(content_md, '')), '([一-鿿])', ' \\1 ', 'g'))`,
       )
       .notNull(),
   },

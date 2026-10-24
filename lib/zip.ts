@@ -28,7 +28,7 @@ export function buildZip(entries: ZipEntry[]): Buffer {
   let offset = 0;
 
   for (const e of entries) {
-    const nameBuf = enc.encode(e.name);
+    const nameBuf = Buffer.from(enc.encode(e.name));
     const data = Buffer.from(deflateRawSync(Buffer.from(e.content, 'utf8')));
     const crc = crc32(Buffer.from(e.content, 'utf8'));
 

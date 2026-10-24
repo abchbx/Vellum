@@ -7,6 +7,7 @@ export default function GlobalError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
+  console.error('[vellum]', error);
   return (
     <div className="mx-auto flex min-h-[86vh] max-w-[420px] flex-col items-start justify-center px-6 py-16">
       <p className="eyebrow">出错了</p>

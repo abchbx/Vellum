@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import Link from 'next/link';
-import { registerAction } from '@/actions';
+import { registerAction } from '@/app/actions';
 
 export default function RegisterPage() {
   const [state, formAction] = useActionState(registerAction, { ok: false });

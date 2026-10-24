@@ -81,7 +81,7 @@ function renderTable(lines: string[]): string {
 
 export function renderMarkdown(md: string): string {
   const links = parseWikiLinks(md);
-  const placeholders = new Map<string, string>();
+  const placeholders = new Map<string, WikiLink>();
   let stash = md;
   links.forEach((l) => {
     const key = `\u0000WIKI${placeholders.size}\u0000`;

@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { NoteEditor, type EditorNote } from '@/components/NoteEditor';
 import { StatusBadge } from '@/components/StatusBadge';
-import { createNoteAction } from '@/actions';
+import { createNoteAction } from '@/app/actions';
 
 interface NoteItem {
   id: string;
@@ -188,9 +188,7 @@ export function Workbench() {
                 <div className="flex justify-between gap-4">
                   <dt className="text-muted">更新</dt>
                   <dd className="text-ink tabular">
-                    {selected.updatedAt instanceof Date
-                      ? selected.updatedAt.toLocaleDateString('zh-CN')
-                      : new Date(selected.updatedAt).toLocaleDateString('zh-CN')}
+                    {new Date(selected.updatedAt).toLocaleDateString('zh-CN')}
                   </dd>
                 </div>
               </dl>

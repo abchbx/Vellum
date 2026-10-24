@@ -6,7 +6,6 @@ import {
   hashPassword,
   verifyPassword,
   signToken,
-  setSessionCookie,
   clearSessionCookie,
   getSessionUser,
 } from '@/lib/auth';
@@ -23,7 +22,8 @@ export interface ActionResult {
   error?: string;
 }
 
-export async function registerAction(form: FormData): Promise<ActionResult> {
+export async function registerAction(prev: ActionResult | null, form: FormData): Promise<ActionResult> {
+  void prev;
   const email = String(form.get('email') ?? '');
   const password = String(form.get('password') ?? '');
   const handle = String(form.get('handle') ?? '');
@@ -64,7 +64,8 @@ export async function registerAction(form: FormData): Promise<ActionResult> {
   redirect('/app');
 }
 
-export async function loginAction(form: FormData): Promise<ActionResult> {
+export async function loginAction(prev: ActionResult | null, form: FormData): Promise<ActionResult> {
+  void prev;
   const email = String(form.get('email') ?? '');
   const password = String(form.get('password') ?? '');
 

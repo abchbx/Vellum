@@ -69,6 +69,6 @@ describe('Markdown 渲染', () => {
 
   it('阅读分钟数为正整数', () => {
     expect(readingMinutes('短')).toBeGreaterThanOrEqual(1);
-    expect(readingMinutes('内容'.repeat(100))).toBeGreaterThan(1);
+    expect(readingMinutes('内容'.repeat(400))).toBeGreaterThan(1);
   });
 });

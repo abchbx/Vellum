@@ -1,4 +1,5 @@
-import { getDb, ensureIndexes } from '../db';
+import { getDb } from '../db';
+import { ensureIndexes } from '../db/queries';
 
 async function main() {
   await ensureIndexes();

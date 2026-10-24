@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { StatusBadge } from './StatusBadge';
 import { Preview } from './Preview';
 import type { NoteStatus } from './StatusBadge';
@@ -14,6 +14,8 @@ export interface EditorNote {
   status: NoteStatus;
   published: boolean;
   readingMins: number;
+  createdAt: string;
+  updatedAt: string;
   tags?: { id: string; name: string; color: string }[];
 }
 
@@ -124,7 +126,7 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
         <span className="font-mono text-xs text-muted tabular">{note.slug}</span>
         <span className="mx-1 h-3 w-px bg-line" />
         <div className="flex items-center gap-1.5">
-          {(['seedling', 'budding', 'evergreen'] as NoteStatus[]).map((s) => (
+          {(['seedling', 'budding', 'evergreen'] as const).map((s) => (
             <button
               key={s}
               type="button"
@@ -136,7 +138,7 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
                 status === s ? 'bg-ink text-bg' : 'text-muted hover:text-ink'
               }`}
             >
-              {{ seedling: '幼苗', budding: '抽芽', evergreen: '常青' }[s]}
+              {({ seedling: '幼苗', budding: '抽芽', evergreen: '常青' } as const)[s]}
             </button>
           ))}
         </div>
@@ -254,6 +256,4 @@ export function NoteEditor({ note }: { note: EditorNote | null }) {
       </div>
     </div>
   );
-}
-
 }

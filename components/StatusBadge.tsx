@@ -6,6 +6,8 @@ const STATUS_META = {
   evergreen: { label: '常青', color: 'var(--evergreen)', hint: '经得起重读' },
 } as const;
 
+export type NoteStatus = (typeof noteStatusEnum)['enumValues'][number];
+
 export function StatusBadge({ status }: { status: keyof typeof STATUS_META }) {
   const meta = STATUS_META[status] ?? STATUS_META.seedling;
   return (
@@ -23,8 +25,8 @@ export function StatusBadge({ status }: { status: keyof typeof STATUS_META }) {
   );
 }
 
-export function statusLabel(status: keyof typeof STATUS_META): string {
-  return STATUS_META[status]?.label ?? status;
+export function statusLabel(status: string): string {
+  return STATUS_META[status as keyof typeof STATUS_META]?.label ?? status;
 }
 
-export type NoteStatus = (typeof noteStatusEnum)[number];
+export type { noteStatusEnum };

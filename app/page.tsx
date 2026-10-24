@@ -6,7 +6,8 @@ import { db } from '@/db';
 import { notes, users } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 
-export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+export const revalidate = 60;
 
 async function demoGarden() {
   try {

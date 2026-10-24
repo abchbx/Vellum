@@ -2,7 +2,6 @@ import { NextRequest } from 'next/server';
 import { requireUserFromRequest } from '@/lib/auth';
 import { db } from '@/db';
 import { notes } from '@/db/schema';
-import { sql } from 'drizzle-orm';
 import { noteCreateSchema } from '@/lib/zod';
 import { uniqueSlug, syncTags, computeExcerpt, computeReadingMins, listNotes } from '@/db/queries';
 import { rebuildLinksForNote } from '@/lib/links';

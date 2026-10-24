@@ -2,6 +2,7 @@ import { randomBytes, scryptSync, timingSafeEqual } from 'node:crypto';
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { NextRequest } from 'next/server';
+import { sql } from 'drizzle-orm';
 import { db } from '../db';
 import { users } from '../db/schema';
 
@@ -30,9 +31,12 @@ export function hashPassword(password: string): string {
 
 export function verifyPassword(password: string, stored: string): boolean {
   try {
-    const [_, n, r, p, saltB64, hashB64] = stored.split('$');
-    const salt = Buffer.from(saltB64 ?? '', 'base64');
-    const expected = Buffer.from(hashB64 ?? '', 'base64');
+    const parts = stored.split('$');
+    const n = parts[1];
+    const r = parts[2];
+    const p = parts[3];
+    const salt = Buffer.from(parts[4] ?? '', 'base64');
+    const expected = Buffer.from(parts[5] ?? '', 'base64');
     const actual = scryptSync(password, salt, 64, {
       N: Number(n),
       r: Number(r),
@@ -87,7 +91,7 @@ export async function getSessionUser() {
   if (!token) return null;
   const userId = await verifyToken(token);
   if (!userId) return null;
-  const rows = await db.select().from(users).where(users.id = userId as never).limit(1);
+  const rows = await db.select().from(users).where(sql`${users.id} = ${userId}::uuid`).limit(1);
   return rows[0] ?? null;
 }
 
@@ -96,7 +100,7 @@ export async function getSessionUserFromRequest(req: NextRequest) {
   if (!token) return null;
   const userId = await verifyToken(token);
   if (!userId) return null;
-  const rows = await db.select().from(users).where(users.id = userId as never).limit(1);
+  const rows = await db.select().from(users).where(sql`${users.id} = ${userId}::uuid`).limit(1);
   return rows[0] ?? null;
 }
 

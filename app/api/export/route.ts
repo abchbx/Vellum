@@ -1,10 +1,10 @@
 import { NextRequest } from 'next/server';
 import { requireUserFromRequest } from '@/lib/auth';
 import { db } from '@/db';
-import { noteTags, notes, tags, users } from '@/db/schema';
+import { noteTags, notes, tags } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { buildZip } from '@/lib/zip';
-import { ok, fail, handleError } from '@/lib/http';
+import { fail, handleError } from '@/lib/http';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -30,7 +30,8 @@ export async function POST(req: NextRequest) {
     const tagRows = await db
       .select({ noteId: noteTags.noteId, tagId: noteTags.tagId, name: tags.name })
       .from(noteTags)
-      .join(tags, sql`${tags.id} = ${noteTags.tagId}`);
+      .innerJoin(tags, sql`${tags.id} = ${noteTags.tagId}`)
+      .execute();
 
     const entries = rows.map((n) => {
       const tagsOfNote = tagRows.filter((t) => t.noteId === n.id).map((t) => t.name);
@@ -61,6 +62,7 @@ export async function POST(req: NextRequest) {
   }
 }
 
-export async function GET(_req: NextRequest) {
+export async function GET(req: NextRequest) {
+  void req;
   return fail(405, 'METHOD_NOT_ALLOWED', '请使用 POST');
 }

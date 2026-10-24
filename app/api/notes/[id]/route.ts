@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server';
 import { requireUserFromRequest } from '@/lib/auth';
 import { db } from '@/db';
-import { links, noteTags, notes, tags } from '@/db/schema';
+import { links, noteTags, notes } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { noteUpdateSchema } from '@/lib/zod';
 import { syncTags, computeExcerpt, computeReadingMins } from '@/db/queries';
@@ -11,10 +11,10 @@ import { ok, fail, handleError } from '@/lib/http';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-export async function GET(req: NextRequest) {
+export async function GET(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUserFromRequest(req);
-    const { id } = await req.params.then((p) => p);
+    const { id } = await ctx.params;
     const rows = await db.select().from(notes).where(sql`${notes.id} = ${id}::uuid`).limit(1);
     const note = rows[0];
     if (!note) return fail(404, 'NOT_FOUND', '笔记不存在');
@@ -36,10 +36,10 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function PATCH(req: NextRequest) {
+export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUserFromRequest(req);
-    const { id } = await req.params.then((p) => p);
+    const { id } = await ctx.params;
     const rows = await db.select().from(notes).where(sql`${notes.id} = ${id}::uuid`).limit(1);
     const note = rows[0];
     if (!note) return fail(404, 'NOT_FOUND', '笔记不存在');
@@ -76,10 +76,10 @@ export async function PATCH(req: NextRequest) {
   }
 }
 
-export async function DELETE(req: NextRequest) {
+export async function DELETE(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   try {
     const user = await requireUserFromRequest(req);
-    const { id } = await req.params.then((p) => p);
+    const { id } = await ctx.params;
     const rows = await db.select().from(notes).where(sql`${notes.id} = ${id}::uuid`).limit(1);
     const note = rows[0];
     if (!note) return fail(404, 'NOT_FOUND', '笔记不存在');

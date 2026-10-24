@@ -13,10 +13,6 @@ export function slugify(raw: string, fallback = 'note'): string {
   return base.length > 0 ? base.slice(0, 80) : fallback;
 }
 
-export interface NoteWithTags extends typeof notes.$inferSelect {
-  noteTags: { tagId: string; tags: { id: string; name: string; color: string } | null }[] | null;
-}
-
 export async function uniqueSlug(authorId: string, title: string, ignoreId?: string) {
   const base = slugify(title);
   let candidate = base;
@@ -85,7 +81,7 @@ export async function listNotes(authorId: string, opts: {
       cursorCond = sql`(${notes.updatedAt} < ${updatedAt}::timestamptz OR (${notes.updatedAt} = ${updatedAt}::timestamptz AND ${notes.id} < ${id}::uuid))`;
     }
   }
-  const where = sql`${conds.join(sql` AND `)} AND ${cursorCond}`;
+  const where = sql`${sql.join(conds, sql` AND `)} AND ${cursorCond}`;
   const rows = await db
     .select()
     .from(notes)
@@ -120,11 +116,11 @@ export async function searchNotes(authorId: string, rawQuery: string, limit = 20
   const tsquery = lexemes.map((l) => `'${l.replace(/'/g, "''")}:*'`).join(' & ');
   return db.execute(sql`
     SELECT id, title, slug, excerpt, status, published,
-           ts_rank(content_tsv, to_tsquery('simple', '${tsquery}')) as rank_,
-           ts_headline(content_md, to_tsquery('simple', '${tsquery}'),
+           ts_rank(content_tsv, to_tsquery('simple', ${sql.raw(`'${tsquery}'`)})) as rank_,
+           ts_headline(content_md, to_tsquery('simple', ${sql.raw(`'${tsquery}'`)}),
              'MaxFragments=1, MaxWords=60, StartSel=<mark class="bg-accent/25 rounded px-0.5">, StopSel=</mark>') as snippet
     FROM notes
-    WHERE author_id = ${authorId}::uuid AND content_tsv @@ to_tsquery('simple', '${tsquery}')
+    WHERE author_id = ${authorId}::uuid AND content_tsv @@ to_tsquery('simple', ${sql.raw(`'${tsquery}'`)})
     ORDER BY rank_ DESC, updated_at DESC
     LIMIT ${limit}
   `);
