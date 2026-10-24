@@ -19,14 +19,12 @@ export function slugify(raw: string): string {
 }
 export async function uniqueSlug(authorId: string, title: string, ignoreId?: string) {
   const base = slugify(title);
-  const candidate0 = base;
-  let candidate = candidate0;
+  let candidate = base;
   for (let i = 2; i < 50; i++) {
-    const safe = candidate.replace(/'/g, "''");
     const rows = await db
       .select({ id: notes.id })
       .from(notes)
-      .where(sql`${notes.authorId} = ${authorId}::uuid AND ${notes.slug} = ${sql.raw(`'${safe}'`)}`)
+      .where(sql`${notes.authorId} = ${authorId}::uuid AND ${notes.slug} = ${candidate}`)
       .limit(1);
     if (rows.length === 0 || (ignoreId && rows[0]?.id === ignoreId)) return candidate;
     candidate = `${base}-${i}`;

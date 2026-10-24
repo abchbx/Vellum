@@ -16,22 +16,13 @@ export default async function ReadNote({
   params: Promise<{ handle: string; slug: string }>;
 }) {
   const { handle, slug } = await params;
-  const recovered = Buffer.from(slug, 'latin1').toString('utf8');
-  const candidates = [slug, recovered].filter((s) => /^[\p{L}\p{N}-]+$/u.test(s));
   const [user, noteRows] = await Promise.all([
     db.select().from(users).where(sql`${users.handle} = ${handle}`).limit(1),
-    (async () => {
-      for (const c of candidates) {
-        const safe = c.replace(/'/g, "''");
-        const rows = await db
-          .select()
-          .from(notes)
-          .where(sql`${notes.authorId} = (SELECT id FROM users WHERE handle = ${handle}) AND ${notes.slug} = ${sql.raw(`'${safe}'`)}`)
-          .limit(1);
-        if (rows.length > 0) return rows;
-      }
-      return [] as typeof notes.$inferSelect[];
-    })(),
+    db
+      .select()
+      .from(notes)
+      .where(sql`${notes.authorId} = (SELECT id FROM users WHERE handle = ${handle}) AND ${notes.slug} = ${slug}`)
+      .limit(1),
   ]);
 
   const gardenUser = user[0];
