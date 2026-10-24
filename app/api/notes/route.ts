@@ -4,7 +4,7 @@ import { db } from '@/db';
 import { notes } from '@/db/schema';
 import { noteCreateSchema } from '@/lib/zod';
 import { uniqueSlug, syncTags, computeExcerpt, computeReadingMins, listNotes } from '@/db/queries';
-import { rebuildLinksForNote } from '@/lib/links';
+import { rebuildLinksForNote, resolveDanglingLinks } from '@/lib/links';
 import { ok, fail, handleError } from '@/lib/http';
 
 export const runtime = 'nodejs';
@@ -57,6 +57,7 @@ export async function POST(req: NextRequest) {
 
     if (parsed.data.tagNames) await syncTags(user.id, note.id, parsed.data.tagNames);
     await rebuildLinksForNote(note.id, user.id);
+    await resolveDanglingLinks(user.id);
     return ok({ note });
   } catch (err) {
     return handleError(err);

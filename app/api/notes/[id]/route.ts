@@ -5,7 +5,7 @@ import { links, noteTags, notes, tags } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { noteUpdateSchema } from '@/lib/zod';
 import { syncTags, computeExcerpt, computeReadingMins } from '@/db/queries';
-import { rebuildLinksForNote } from '@/lib/links';
+import { rebuildLinksForNote, resolveDanglingLinks } from '@/lib/links';
 import { ok, fail, handleError } from '@/lib/http';
 
 export const runtime = 'nodejs';
@@ -71,6 +71,7 @@ export async function PATCH(req: NextRequest, ctx: { params: Promise<{ id: strin
 
     if (parsed.data.tagNames !== undefined) await syncTags(user.id, id, parsed.data.tagNames);
     await rebuildLinksForNote(id, user.id);
+    await resolveDanglingLinks(user.id);
     return ok({ note: updated });
   } catch (err) {
     return handleError(err);

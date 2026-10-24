@@ -44,3 +44,46 @@ export async function rebuildLinksForNote(noteId: string, authorId: string) {
     await db.delete(links).where(sql`${sql.join(ors, sql` OR `)}`);
   }
 }
+
+export async function resolveDanglingLinks(authorId: string): Promise<number> {
+  const dangling = await db
+    .select({ id: links.id, targetSlug: links.targetSlug })
+    .from(links)
+    .where(
+      sql`${links.targetId} IS NULL AND ${links.sourceId} IN (SELECT ${notes.id} FROM ${notes} WHERE ${notes.authorId} = ${authorId}::uuid)`,
+    );
+  if (dangling.length === 0) return 0;
+
+  const all = await db
+    .select({ id: notes.id, slug: notes.slug })
+    .from(notes)
+    .where(sql`${notes.authorId} = ${authorId}::uuid`);
+  const bySlug = new Map(all.map((n) => [n.slug.toLowerCase(), n.id]));
+
+  let resolved = 0;
+  for (const l of dangling) {
+    const targetId = bySlug.get(slugify(l.targetSlug));
+    if (targetId) {
+      await db
+        .update(links)
+        .set({ targetId })
+        .where(sql`${links.id} = ${l.id}::uuid`);
+      resolved++;
+    }
+  }
+  return resolved;
+}
+
+export async function rebuildAllLinks(authorId: string): Promise<number> {
+  const authorNotes = await db
+    .select({ id: notes.id })
+    .from(notes)
+    .where(sql`${notes.authorId} = ${authorId}::uuid`);
+  await db.delete(links).where(
+    sql`${links.sourceId} IN (SELECT ${notes.id} FROM ${notes} WHERE ${notes.authorId} = ${authorId}::uuid)`,
+  );
+  for (const n of authorNotes) {
+    await rebuildLinksForNote(n.id, authorId);
+  }
+  return authorNotes.length;
+}

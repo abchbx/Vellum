@@ -10,7 +10,7 @@ import { db } from '@/db';
 import { notes } from '@/db/schema';
 import { sql } from 'drizzle-orm';
 import { uniqueSlug, syncTags, computeExcerpt, computeReadingMins } from '@/db/queries';
-import { rebuildLinksForNote } from '@/lib/links';
+import { rebuildLinksForNote, resolveDanglingLinks } from '@/lib/links';
 
 export interface ActionResult {
   ok: boolean;
@@ -86,11 +86,12 @@ export async function saveNoteAction(noteId: string, form: FormData): Promise<Ac
 
   await syncTags(user.id, noteId, parsed.data.tagNames ?? []);
   await rebuildLinksForNote(noteId, user.id);
+  await resolveDanglingLinks(user.id);
   revalidatePath('/app');
   return { ok: true };
 }
 
-export async function createNoteAction(form: FormData): Promise<ActionResult> {
+export async function createNoteAction(form: FormData): Promise<ActionResult & { noteId?: string }> {
   const user = await getSessionUser();
   if (!user) return { ok: false, error: '未登录' };
 
@@ -110,6 +111,9 @@ export async function createNoteAction(form: FormData): Promise<ActionResult> {
     })
     .returning({ id: notes.id });
   if (!note) return { ok: false, error: '创建失败' };
+
+  await rebuildLinksForNote(note.id, user.id);
+  await resolveDanglingLinks(user.id);
   revalidatePath('/app');
-  return { ok: true };
+  return { ok: true, noteId: note.id };
 }
