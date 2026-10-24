@@ -9,28 +9,45 @@ import { StatusBadge } from '@/components/StatusBadge';
 export const runtime = 'nodejs';
 export const revalidate = 300;
 
-export default async function PublicGarden({ params }: { params: Promise<{ handle: string }> }) {
+export default async function PublicGarden({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ handle: string }>;
+  searchParams: Promise<URLSearchParams>;
+}) {
   const { handle } = await params;
-  const [user, rows] = await Promise.all([
-    db.select().from(users).where(sql`${users.handle} = ${handle}`).limit(1),
-    db
-      .select({
-        id: notes.id,
-        title: notes.title,
-        slug: notes.slug,
-        excerpt: notes.excerpt,
-        status: notes.status,
-        publishedAt: notes.publishedAt,
-        authorId: notes.authorId,
-      })
-      .from(notes)
-      .where(sql`${notes.published} = true`)
-      .orderBy(sql`${notes.publishedAt} DESC`),
-  ]);
-
+  const sp = await searchParams;
+  const user = await db.select().from(users).where(sql`${users.handle} = ${handle}`).limit(1);
   const gardenUser = user[0];
   if (!gardenUser || !gardenUser.gardenPublic) notFound();
-  const gardenNotes = rows.filter((n) => n.authorId === gardenUser.id);
+
+  const limit = Math.min(Math.max(Number(sp.get('limit') ?? 36) || 36, 1), 100);
+  let cursorCond = sql`true`;
+  const cursor = sp.get('cursor');
+  if (cursor) {
+    const [publishedAt, id] = cursor.split('|');
+    if (publishedAt && id) {
+      cursorCond = sql`(${notes.publishedAt} < ${publishedAt}::timestamptz OR (${notes.publishedAt} = ${publishedAt}::timestamptz AND ${notes.id} < ${id}::uuid))`;
+    }
+  }
+  const rows = await db
+    .select({
+      id: notes.id,
+      title: notes.title,
+      slug: notes.slug,
+      excerpt: notes.excerpt,
+      status: notes.status,
+      publishedAt: notes.publishedAt,
+    })
+    .from(notes)
+    .where(sql`${notes.authorId} = ${gardenUser.id}::uuid AND ${notes.published} = true AND ${cursorCond}`)
+    .orderBy(sql`${notes.publishedAt} DESC, ${notes.id} DESC`)
+    .limit(limit + 1);
+  const hasMore = rows.length > limit;
+  const gardenNotes = rows.slice(0, limit);
+  const last = gardenNotes[gardenNotes.length - 1];
+  const nextCursor = hasMore && last ? `${last.publishedAt?.toISOString()}|${last.id}` : null;
 
   return (
     <div className="min-h-screen">
