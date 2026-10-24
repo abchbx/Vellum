@@ -81,6 +81,12 @@ export async function listNotes(authorId: string, opts: {
       sql`EXISTS (SELECT 1 FROM ${noteTags} nt JOIN ${tags} t ON t.id = nt.tag_id WHERE nt.note_id = ${notes.id} AND t.name = ${opts.tag})`,
     );
   }
+  if (opts.q) {
+    const like = `%${opts.q}%`;
+    conds.push(
+      sql`(${notes.title} ILIKE ${like} OR ${notes.excerpt} ILIKE ${like} OR ${notes.contentMd} ILIKE ${like})`,
+    );
+  }
   let cursorCond = sql`true`;
   if (opts.cursor) {
     const parts = opts.cursor.split('|');

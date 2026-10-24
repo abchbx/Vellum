@@ -16,7 +16,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => null);
     const format = body?.format === 'json' ? 'json' : 'md-zip';
 
-    const rows = await db.select().from(notes).where(sql`${notes.authorId} = ${user.id}::uuid`);
+    const rows = await db
+      .select()
+      .from(notes)
+      .where(sql`${notes.authorId} = ${user.id}::uuid`)
+      .limit(1000);
 
     if (format === 'json') {
       const data = JSON.stringify({ exportedAt: new Date().toISOString(), notes: rows }, null, 2);
