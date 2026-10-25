@@ -32,14 +32,19 @@ export default async function PublicGarden({
   searchParams: Promise<URLSearchParams>;
 }) {
   const { handle } = await params;
-  const sp = await searchParams;
+  const spRaw = await searchParams;
+  const spGet = (key: string): string | null => {
+    if (spRaw instanceof URLSearchParams) return spRaw.get(key);
+    const v = (spRaw as Record<string, string | undefined>)[key];
+    return v ?? null;
+  };
   const user = await db.select().from(users).where(sql`${users.handle} = ${handle}`).limit(1);
   const gardenUser = user[0];
   if (!gardenUser || !gardenUser.gardenPublic) notFound();
 
-  const limit = Math.min(Math.max(Number(sp.get('limit') ?? 36) || 36, 1), 100);
+  const limit = Math.min(Math.max(Number(spGet('limit') ?? 36) || 36, 1), 100);
   let cursorCond = sql`true`;
-  const cursor = sp.get('cursor');
+  const cursor = spGet('cursor');
   if (cursor) {
     const [publishedAt, id] = cursor.split('|');
     if (publishedAt && id) {
